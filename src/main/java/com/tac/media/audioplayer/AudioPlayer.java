@@ -39,7 +39,7 @@ public class AudioPlayer implements OnPreparedListener, OnErrorListener, MusicFo
 
     public static final float DUCK_VOLUME = 0.1f;
 
-    private static int UPDATE_PERIOD = 500;
+    private static int UPDATE_PERIOD = 1000;
 
     private MediaPlayer mPlayer = null;
 
@@ -296,7 +296,8 @@ public class AudioPlayer implements OnPreparedListener, OnErrorListener, MusicFo
 
     @Override
     public void seekTo(int progress) {
-        mPlayer.seekTo(progress);
+        double progressInMillis = (progress/100.0)*mPlayer.getDuration();
+        mPlayer.seekTo((int) progressInMillis);
     }
 
     public void setUpdatePeriod(int value) {
