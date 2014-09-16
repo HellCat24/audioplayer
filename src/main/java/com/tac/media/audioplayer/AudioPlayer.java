@@ -11,13 +11,12 @@ import android.media.MediaPlayer.OnPreparedListener;
 import android.media.RemoteControlClient;
 import android.net.wifi.WifiManager;
 import android.net.wifi.WifiManager.WifiLock;
+import android.os.Build;
 import android.os.Handler;
 import android.os.PowerManager;
 import android.util.Log;
 
-import com.tac.media.audioplayer.AudioFocusHelper;
 import com.tac.media.audioplayer.enums.AudioFocus;
-import com.tac.media.audioplayer.enums.PauseReason;
 import com.tac.media.audioplayer.enums.State;
 import com.tac.media.audioplayer.interfaces.MusicFocusable;
 import com.tac.media.audioplayer.interfaces.PlayerWrapper;
@@ -26,12 +25,9 @@ import com.tac.media.audioplayer.interfaces.StateNotifier;
 import com.tac.media.audioplayer.interfaces.TimeUpdater;
 
 import java.io.IOException;
-import java.util.Timer;
 import java.util.TimerTask;
-import java.util.logging.LogRecord;
 
 public class AudioPlayer implements OnPreparedListener, OnErrorListener, MusicFocusable, PlayerWrapper, MediaPlayer.OnCompletionListener {
-
 
     public final static String TAG = "AudioPlayer";
 
@@ -75,7 +71,7 @@ public class AudioPlayer implements OnPreparedListener, OnErrorListener, MusicFo
                 int duration = mPlayer.getDuration();
                 int currentPosition = mPlayer.getCurrentPosition();
                 mProgressUpdate.onProgressUpdate(HUNDRED_PERCENT * currentPosition / duration);
-                if(mTimeUpdater!=null) mTimeUpdater.updateTime(currentPosition);
+                if (mTimeUpdater != null) mTimeUpdater.updateTime(currentPosition);
                 mHandler.postDelayed(mUpdateProgressTask, UPDATE_PERIOD);
             }
         }
@@ -89,10 +85,10 @@ public class AudioPlayer implements OnPreparedListener, OnErrorListener, MusicFo
         mAudioManager = (AudioManager) context.getSystemService(Context.AUDIO_SERVICE);
         mMediaButtonReceiverComponent = new ComponentName(context, MusicIntentReceiver.class);
         mHandler = new Handler();
-        initRemoteControlClient();
+        if (Build.VERSION.SDK_INT > Build.VERSION_CODES.HONEYCOMB_MR2) initRemoteControlClient();
     }
 
-    private void initRemoteControlClient(){
+    private void initRemoteControlClient() {
         if (mRemoteControlClient == null) {
             Intent intent = new Intent(Intent.ACTION_MEDIA_BUTTON);
             intent.setComponent(mMediaButtonReceiverComponent);
@@ -134,33 +130,36 @@ public class AudioPlayer implements OnPreparedListener, OnErrorListener, MusicFo
 
     private void configAndStartMediaPlayer() {
         Log.i(TAG, "debug: configAndStartMediaPlayer");
-        if(mStateUpdater!=null) mStateUpdater.onStart();
-        if(mProgressUpdate!=null) startUpdates();
+        if (mStateUpdater != null) mStateUpdater.onStart();
+        if (mProgressUpdate != null) startUpdates();
         if (!mPlayer.isPlaying()) {
             mPlayer.start();
         }
-        mRemoteControlClient.setPlaybackState(RemoteControlClient.PLAYSTATE_PLAYING);
+        if (mRemoteControlClient != null)
+            mRemoteControlClient.setPlaybackState(RemoteControlClient.PLAYSTATE_PLAYING);
     }
 
     private void processPauseRequest() {
         Log.i(TAG, "debug: processPauseRequest");
-        if(mStateUpdater!=null) mStateUpdater.onPause();
+        if (mStateUpdater != null) mStateUpdater.onPause();
         if (mCurrentState == State.Playing) {
             mCurrentState = State.Paused;
             mPlayer.pause();
             relaxResources(false);
         }
-        mRemoteControlClient.setPlaybackState(RemoteControlClient.PLAYSTATE_PAUSED);
+        if (mRemoteControlClient != null)
+            mRemoteControlClient.setPlaybackState(RemoteControlClient.PLAYSTATE_PAUSED);
     }
 
     private void processStopRequest(boolean force) {
-        if(mStateUpdater!=null) mStateUpdater.onStop();
+        if (mStateUpdater != null) mStateUpdater.onStop();
         if (mCurrentState == State.Playing || mCurrentState == State.Paused || force) {
             mCurrentState = State.Stopped;
             relaxResources(true);
             giveUpAudioFocus();
         }
-        mRemoteControlClient.setPlaybackState(RemoteControlClient.PLAYSTATE_STOPPED);
+        if (mRemoteControlClient != null)
+            mRemoteControlClient.setPlaybackState(RemoteControlClient.PLAYSTATE_STOPPED);
     }
 
     void relaxResources(boolean releaseMediaPlayer) {
@@ -278,14 +277,16 @@ public class AudioPlayer implements OnPreparedListener, OnErrorListener, MusicFo
     @Override
     public void pause() {
         mHandler.removeCallbacks(mUpdateProgressTask);
-        mRemoteControlClient.setPlaybackState(RemoteControlClient.PLAYSTATE_PAUSED);
+        if (mRemoteControlClient != null)
+            mRemoteControlClient.setPlaybackState(RemoteControlClient.PLAYSTATE_PAUSED);
         processPauseRequest();
     }
 
     @Override
     public void stop() {
         mHandler.removeCallbacks(mUpdateProgressTask);
-        mRemoteControlClient.setPlaybackState(RemoteControlClient.PLAYSTATE_STOPPED);
+        if (mRemoteControlClient != null)
+            mRemoteControlClient.setPlaybackState(RemoteControlClient.PLAYSTATE_STOPPED);
         processStopRequest(false);
     }
 
@@ -296,7 +297,7 @@ public class AudioPlayer implements OnPreparedListener, OnErrorListener, MusicFo
 
     @Override
     public void seekTo(int progress) {
-        double progressInMillis = (progress/100.0)*mPlayer.getDuration();
+        double progressInMillis = (progress / 100.0) * mPlayer.getDuration();
         mPlayer.seekTo((int) progressInMillis);
     }
 
@@ -324,14 +325,14 @@ public class AudioPlayer implements OnPreparedListener, OnErrorListener, MusicFo
         mProgressUpdate = progressUpdate;
     }
 
-    public int getDuration(){
+    public int getDuration() {
         return mPlayer.getDuration();
     }
 
     @Override
     public void onCompletion(MediaPlayer mp) {
         mHandler.removeCallbacks(mUpdateProgressTask);
-        if(mStateUpdater!=null) mStateUpdater.onStop();
+        if (mStateUpdater != null) mStateUpdater.onStop();
     }
 
     public void onDestroy() {

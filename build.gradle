@@ -1,4 +1,13 @@
-apply plugin: 'android-library'
+apply plugin: 'com.android.library'
+
+buildscript {
+    repositories {
+        mavenCentral()
+    }
+    dependencies {
+        classpath 'com.android.tools.build:gradle:0.12.+'
+    }
+}
 
 android {
     compileSdkVersion 19
