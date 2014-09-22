@@ -15,20 +15,18 @@ import android.os.Handler;
 import android.os.PowerManager;
 import android.util.Log;
 
-import com.tac.media.audioplayer.AudioFocusHelper;
 import com.tac.media.audioplayer.enums.AudioFocus;
-import com.tac.media.audioplayer.enums.PauseReason;
 import com.tac.media.audioplayer.enums.State;
+import com.tac.media.audioplayer.interfaces.IRecordUpdate;
 import com.tac.media.audioplayer.interfaces.MusicFocusable;
 import com.tac.media.audioplayer.interfaces.PlayerWrapper;
 import com.tac.media.audioplayer.interfaces.ProgressUpdater;
 import com.tac.media.audioplayer.interfaces.StateNotifier;
 import com.tac.media.audioplayer.interfaces.TimeUpdater;
 
+import java.io.FileDescriptor;
 import java.io.IOException;
-import java.util.Timer;
 import java.util.TimerTask;
-import java.util.logging.LogRecord;
 
 public class AudioPlayer implements OnPreparedListener, OnErrorListener, MusicFocusable, PlayerWrapper, MediaPlayer.OnCompletionListener {
 
@@ -68,6 +66,10 @@ public class AudioPlayer implements OnPreparedListener, OnErrorListener, MusicFo
     private ComponentName mMediaButtonReceiverComponent;
 
     private AudioManager mAudioManager;
+
+    private AudioRecordStream mRecorderStream;
+
+    private IRecordUpdate mRecordListener;
 
     private TimerTask mUpdateProgressTask = new TimerTask() {
         public void run() {
@@ -213,7 +215,6 @@ public class AudioPlayer implements OnPreparedListener, OnErrorListener, MusicFo
             ex.printStackTrace();
         }
     }
-
     public void onPrepared(MediaPlayer player) {
         Log.i(TAG, "debug: onPrepared");
         mCurrentState = State.Playing;
@@ -340,4 +341,24 @@ public class AudioPlayer implements OnPreparedListener, OnErrorListener, MusicFo
         relaxResources(true);
         giveUpAudioFocus();
     }
+
+    public void setRecordUpdate(IRecordUpdate record){
+        mRecordListener = record;
+    }
+
+    public void startRecording() {
+        mRecorderStream = new AudioRecordStream();
+        mRecorderStream.setRecordUpdate(mRecordListener);
+        mRecorderStream.startRecording();
+    }
+
+    public void stopRecording() {
+        // stops the recording activity
+        if (null != mRecorderStream) {
+            mRecorderStream.stop();
+            mRecorderStream.release();
+            mRecorderStream = null;
+        }
+    }
+
 }
