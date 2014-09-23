@@ -10,6 +10,14 @@ android {
         targetSdkVersion 19
         versionCode 1
         versionName "1.0"
+
+        ndk {
+            abiFilter "armeabi"
+//            armeabi-v7a
+            moduleName "libgsm"
+            cFlags "-I${project.buildDir}/../src/main/jni/inc"
+            ldLibs "log"
+        }
     }
     buildTypes {
         release {

@@ -15,6 +15,7 @@ import android.os.Handler;
 import android.os.PowerManager;
 import android.util.Log;
 
+import com.tac.kulik.codec.KGSMCodec;
 import com.tac.media.audioplayer.enums.AudioFocus;
 import com.tac.media.audioplayer.enums.State;
 import com.tac.media.audioplayer.interfaces.IRecordUpdate;
@@ -24,6 +25,7 @@ import com.tac.media.audioplayer.interfaces.ProgressUpdater;
 import com.tac.media.audioplayer.interfaces.StateNotifier;
 import com.tac.media.audioplayer.interfaces.TimeUpdater;
 
+import java.io.File;
 import java.io.FileDescriptor;
 import java.io.IOException;
 import java.util.TimerTask;
@@ -82,6 +84,7 @@ public class AudioPlayer implements OnPreparedListener, OnErrorListener, MusicFo
             }
         }
     };
+    private File mWriterFile;
 
     public AudioPlayer(Context context) {
         Log.i(TAG, "debug: Creating AudioPlayer");
@@ -346,8 +349,14 @@ public class AudioPlayer implements OnPreparedListener, OnErrorListener, MusicFo
         mRecordListener = record;
     }
 
-    public void startRecording() {
+    public void startRecording(File recFile) {
+//        if (mWriterFile == null) {
+//            throw new IllegalStateException("No file for record are found.");
+//        }
+        KGSMCodec mCodec = new KGSMCodec();
         mRecorderStream = new AudioRecordStream();
+        mRecorderStream.setRecordFile(recFile);
+        mRecorderStream.setCodec(mCodec);
         mRecorderStream.setRecordUpdate(mRecordListener);
         mRecorderStream.startRecording();
     }

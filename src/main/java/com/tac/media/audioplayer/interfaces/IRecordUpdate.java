@@ -6,5 +6,4 @@ package com.tac.media.audioplayer.interfaces;
 public interface IRecordUpdate {
 
     abstract void byteRecord(float data);
-
 }

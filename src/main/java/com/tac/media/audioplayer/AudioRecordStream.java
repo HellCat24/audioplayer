@@ -3,18 +3,33 @@ package com.tac.media.audioplayer;
 import android.media.AudioFormat;
 import android.media.AudioRecord;
 import android.media.MediaRecorder;
+import android.util.Log;
 
+import com.tac.kulik.codec.WaveHeader;
 import com.tac.media.audioplayer.interfaces.IRecordUpdate;
 
+import org.apache.http.util.ByteArrayBuffer;
+
+import java.io.BufferedWriter;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
+import java.io.FileWriter;
+import java.io.IOException;
+import java.io.RandomAccessFile;
 import java.nio.ByteBuffer;
+import java.util.Date;
 
 /**
  * Created by dima on 9/19/14.
  */
 public class AudioRecordStream extends AudioRecord {
 
-    private static final int BufferElements2Rec = 1024; // want to play 2048 (2K) since 2 bytes we use only 1024
-    private static final int BytesPerElement = 2; // 2 bytes in 16bit format
+    private static final String TAG = AudioRecordStream.class.getSimpleName();
+
+    private static final int BUFFER_ELEMENTS_2_REC = 1024; // want to play 2048 (2K) since 2 bytes we use only 1024
+    private static final int BYTES_PER_ELEMENT = 2; // 2 bytes in 16bit format
 
     private static final int RECORDER_SAMPLERATE = 8000;
     private static final int RECORDER_CHANNELS = AudioFormat.CHANNEL_IN_MONO;
@@ -22,9 +37,13 @@ public class AudioRecordStream extends AudioRecord {
 
     private IRecordUpdate mRecordUpdate;
 
-    private Thread recordingThread = null;
-    private boolean isRecording = false;
-    public short sData[] = new short[BufferElements2Rec];
+    private Thread mRecordingThread = null;
+    private boolean mIsRecording = false;
+    //    public short mData[];
+//    = new short[BUFFER_ELEMENTS_2_REC];
+    private IKCodec mCodec;
+    private File mRecordFile;
+
     /**
      * Class constructor.
      *
@@ -51,72 +70,132 @@ public class AudioRecordStream extends AudioRecord {
         super(audioSource, sampleRateInHz, channelConfig, audioFormat, bufferSizeInBytes);
     }
 
-    public AudioRecordStream(){
+    public AudioRecordStream() {
         super(MediaRecorder.AudioSource.MIC,
                 RECORDER_SAMPLERATE, RECORDER_CHANNELS,
-                RECORDER_AUDIO_ENCODING, BufferElements2Rec * BytesPerElement);
+                AudioFormat.ENCODING_PCM_16BIT, BUFFER_ELEMENTS_2_REC * BYTES_PER_ELEMENT);
     }
 
-
-    public void setRecordUpdate(IRecordUpdate record){
+    public void setRecordUpdate(IRecordUpdate record) {
         mRecordUpdate = record;
     }
 
     @Override
     public void startRecording() throws IllegalStateException {
         super.startRecording();
-        isRecording = true;
-        recordingThread = new Thread(new Runnable() {
+        mIsRecording = true;
+        mRecordingThread = new Thread(new Runnable() {
             public void run() {
                 writeAudioDataToFile();
             }
         }, "AudioRecorder Thread");
-        recordingThread.start();
+        mRecordingThread.start();
     }
 
     @Override
     public int read(ByteBuffer audioBuffer, int sizeInBytes) {
         int result = super.read(audioBuffer, sizeInBytes);
-        if(isRecording && mRecordUpdate != null) mRecordUpdate.byteRecord( getAverageValue(audioBuffer) );
+        if (mIsRecording && mRecordUpdate != null)
+            mRecordUpdate.byteRecord(getAverageValue(audioBuffer));
         return result;
     }
 
     @Override
     public int read(byte[] audioData, int offsetInBytes, int sizeInBytes) {
         int result = super.read(audioData, offsetInBytes, sizeInBytes);
-        if(isRecording && mRecordUpdate != null) mRecordUpdate.byteRecord( getAverageValue(audioData) );
+        if (mIsRecording && mRecordUpdate != null)
+            mRecordUpdate.byteRecord(getAverageValue(audioData));
         return result;
     }
 
     @Override
     public int read(short[] audioData, int offsetInShorts, int sizeInShorts) {
         int result = super.read(audioData, offsetInShorts, sizeInShorts);
-        if(isRecording && mRecordUpdate != null) mRecordUpdate.byteRecord( getAverageValue(audioData) );
+        if (mIsRecording && mRecordUpdate != null)
+            mRecordUpdate.byteRecord(getAverageValue(audioData));
 
         return result;
     }
 
     @Override
     public void stop() throws IllegalStateException {
-        isRecording = false;
+        mIsRecording = false;
         super.stop();
     }
 
     @Override
     public void release() {
         super.release();
-        recordingThread = null;
+        mRecordingThread = null;
     }
 
     private void writeAudioDataToFile() {
-        while (isRecording) {
-            read(sData, 0, BufferElements2Rec);
+        int dataCounter = 0;
+        byte[] data = new byte[0];
+        if (mCodec != null) {
+            FileOutputStream fileOutputStream = null;
+            try {
+                fileOutputStream = new FileOutputStream(mRecordFile);
+                while (mIsRecording) {
+                    data = new byte[mCodec.getReadBufferLength()];
+                    int length = read(data, 0, data.length);
+                    if (length < 0) {
+                        throw new IllegalStateException("WTF");
+                    }
+                    byte[] encoded = mCodec.encode(data);
+                    dataCounter += encoded.length;
+                    fileOutputStream.write(encoded);
+//                    fileOutputStream.write(data);
+
+                }
+            } catch (FileNotFoundException e) {
+                Log.e(TAG, "No file Found", e);
+            } catch (IOException e) {
+                Log.e(TAG, "IO problem", e);
+            } finally {
+                try {
+                    fileOutputStream.close();
+                } catch (IOException e) {
+                    Log.e(TAG, "IO problem", e);
+                }
+            }
+            writeFileHeaders(mRecordFile, dataCounter);
+        } else {
+            while (mIsRecording) {
+                read(data, 0, BUFFER_ELEMENTS_2_REC);
+                //TODO write Data to regular file
+            }
         }
+    }
+
+    private void writeFileHeaders(File recordFile, int dataCounter) {
+
+        try {
+            RandomAccessFile f = new RandomAccessFile(recordFile, "rw");
+            f.seek(0); // to the beginning
+            f.write(getHeader(dataCounter));
+            f.close();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
+    private byte[] getHeader(int dataCounter) {
+//        WaveHeader h = new WaveHeader(WaveHeader.FORMAT_PCM, 1, 8000,  160, dataCounter);
+        byte[] wavHeaderBytes = {0x52, 0x49, 0x46, 0x46, 0x17, 0x09, 0x00, 0x00, 0x57, 0x41, 0x56, 0x45, 0x66, 0x6D, 0x74, 0x20, 0x14, 0x00, 0x00, 0x00, 0x31, 0x00, 0x01, 0x00, 0x40, 0x1F, 0x00, 0x00, 0x59, 0x06, 0x00, 0x00, 0x41,
+                0x00, 0x00, 0x00, 0x02, 0x00, 0x40, 0x01, 0x66, 0x61, 0x63, 0x74, 0x04, 0x00, 0x00, 0x00, 0x2C, 0x2B, 0x00, 0x00, 0x64, 0x61, 0x74, 0x61};
+        ByteArrayBuffer nn = new ByteArrayBuffer(wavHeaderBytes.length + 4);
+        nn.append(wavHeaderBytes, 0, wavHeaderBytes.length);
+        nn.append(dataCounter >> 0);
+        nn.append(dataCounter >> 8);
+        nn.append(dataCounter >> 16);
+        nn.append(dataCounter >> 24);
+        return nn.buffer();
     }
 
     private float getAverageValue(short[] data) {
         float value = 0f;
-        for(int i = 0 ; i < data.length; i++){
+        for (int i = 0; i < data.length; i++) {
             value += data[i];
         }
         value = Math.abs(value) / data.length;
@@ -125,7 +204,7 @@ public class AudioRecordStream extends AudioRecord {
 
     private float getAverageValue(byte[] data) {
         float value = 0f;
-        for(int i = 0; i < data.length; i++){
+        for (int i = 0; i < data.length; i++) {
             value += data[i];
         }
         value = value / data.length;
@@ -136,4 +215,19 @@ public class AudioRecordStream extends AudioRecord {
         return getAverageValue(data.array());
     }
 
+    public void setCodec(IKCodec mCodec) {
+        this.mCodec = mCodec;
+    }
+
+    public void setRecordFile(File recordFile) {
+//        mRecordFile = recordFile;
+        File dir = new File("/sdcard/notate");
+        dir.mkdirs();
+        mRecordFile = new File(dir, "f" + new Date() + ".raw");
+        try {
+            mRecordFile.createNewFile();
+        } catch (IOException e) {
+            Log.e(TAG, "stub problem");
+        }
+    }
 }
