@@ -5,17 +5,13 @@ import android.media.AudioRecord;
 import android.media.MediaRecorder;
 import android.util.Log;
 
-import com.tac.kulik.codec.WaveHeader;
 import com.tac.media.audioplayer.interfaces.IRecordUpdate;
 
 import org.apache.http.util.ByteArrayBuffer;
 
-import java.io.BufferedWriter;
 import java.io.File;
-import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
-import java.io.FileWriter;
 import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.nio.ByteBuffer;
@@ -145,8 +141,6 @@ public class AudioRecordStream extends AudioRecord {
                     byte[] encoded = mCodec.encode(data);
                     dataCounter += encoded.length;
                     fileOutputStream.write(encoded);
-//                    fileOutputStream.write(data);
-
                 }
             } catch (FileNotFoundException e) {
                 Log.e(TAG, "No file Found", e);
@@ -182,8 +176,11 @@ public class AudioRecordStream extends AudioRecord {
 
     private byte[] getHeader(int dataCounter) {
 //        WaveHeader h = new WaveHeader(WaveHeader.FORMAT_PCM, 1, 8000,  160, dataCounter);
-        byte[] wavHeaderBytes = {0x52, 0x49, 0x46, 0x46, 0x17, 0x09, 0x00, 0x00, 0x57, 0x41, 0x56, 0x45, 0x66, 0x6D, 0x74, 0x20, 0x14, 0x00, 0x00, 0x00, 0x31, 0x00, 0x01, 0x00, 0x40, 0x1F, 0x00, 0x00, 0x59, 0x06, 0x00, 0x00, 0x41,
-                0x00, 0x00, 0x00, 0x02, 0x00, 0x40, 0x01, 0x66, 0x61, 0x63, 0x74, 0x04, 0x00, 0x00, 0x00, 0x2C, 0x2B, 0x00, 0x00, 0x64, 0x61, 0x74, 0x61};
+        char[] wavHeaderBytes = {0x52, 0x49, 0x46, 0x46,
+                0x00, 0x01, 0x92, 0xC0, // all size - 8
+                0x57, 0x41, 0x56, 0x45, 0x66, 0x6D, 0x74, 0x20, 0x10, 0x00, 0x00, 0x00, 0x01, 0x00, 0x01, 0x00, 0x40, 0x1F, 0x00, 0x00, 0x80, 0x3E, 0x00, 0x00, 0x02, 0x00, 0x10, 0x00, 0x64, 0x61, 0x74, 0x61,
+                 // size with out header
+                };
         ByteArrayBuffer nn = new ByteArrayBuffer(wavHeaderBytes.length + 4);
         nn.append(wavHeaderBytes, 0, wavHeaderBytes.length);
         nn.append(dataCounter >> 0);
