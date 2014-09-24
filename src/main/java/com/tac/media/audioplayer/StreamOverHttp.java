@@ -26,14 +26,15 @@ import java.util.StringTokenizer;
 public class StreamOverHttp {
     private static final boolean debug = false;
 
-//    private final AssetFileDescriptor file;
+//    private final File file;
+    private final AssetFileDescriptor file;
     private final String fileMimeType;
     private long fileSize;
 
     private final ServerSocket serverSocket;
     private Thread mainThread;
     private String name;
-    private InputStream stream;
+//    private InputStream stream;
     /**
      * Some HTTP response status codes
      */
@@ -42,36 +43,11 @@ public class StreamOverHttp {
             HTTP_416 = "416 Range not satisfiable",
             HTTP_INTERNALERROR = "500 Internal Server Error";
 
-    public StreamOverHttp(InputStream stream, String forceMimeType, long length, String name) throws IOException{
-        this.stream = stream;
-        fileSize = length;
-        this.name = name;
-        fileMimeType = "audio/mpeg";//forceMimeType!=null ? forceMimeType : "";//getMimeType(file);//file.mimeType;
-        serverSocket = new ServerSocket(0);
-        mainThread = new Thread(new Runnable(){
-            @Override
-            public void run(){
-                try{
-                    while(true) {
-                        Socket accept = serverSocket.accept();
-                        new HttpSession(accept);
-                    }
-                }catch(IOException e){
-                    e.printStackTrace();
-                }
-            }
-
-        });
-        mainThread.setName("Stream over HTTP");
-        mainThread.setDaemon(true);
-        mainThread.start();
-    }
-
-//    public StreamOverHttp(AssetFileDescriptor f, String forceMimeType, String name) throws IOException{
-//        file = f;
-//        fileSize = file.getLength();
+//    public StreamOverHttp(InputStream stream, String forceMimeType, long length, String name) throws IOException{
+//        this.stream = stream;
+//        fileSize = length;
 //        this.name = name;
-//        fileMimeType = forceMimeType!=null ? forceMimeType : getMimeType(file);//file.mimeType;
+//        fileMimeType = "audio/mpeg";//forceMimeType!=null ? forceMimeType : "";//getMimeType(file);//file.mimeType;
 //        serverSocket = new ServerSocket(0);
 //        mainThread = new Thread(new Runnable(){
 //            @Override
@@ -91,6 +67,56 @@ public class StreamOverHttp {
 //        mainThread.setDaemon(true);
 //        mainThread.start();
 //    }
+
+//    public StreamOverHttp(File f, String forceMimeType, String name) throws IOException{
+//        file = f;
+//        fileSize = file.length();
+//        this.name = name;
+//        fileMimeType = forceMimeType;//!=null ? forceMimeType : getMimeType(file);//file.mimeType;
+//        serverSocket = new ServerSocket(0);
+//        mainThread = new Thread(new Runnable(){
+//            @Override
+//            public void run(){
+//                try{
+//                    while(true) {
+//                        Socket accept = serverSocket.accept();
+//                        new HttpSession(accept);
+//                    }
+//                }catch(IOException e){
+//                    e.printStackTrace();
+//                }
+//            }
+//
+//        });
+//        mainThread.setName("Stream over HTTP");
+//        mainThread.setDaemon(true);
+//        mainThread.start();
+//    }
+
+    public StreamOverHttp(AssetFileDescriptor f, String forceMimeType, String name) throws IOException{
+        file = f;
+        fileSize = file.getLength();
+        this.name = name;
+        fileMimeType = forceMimeType;//!=null ? forceMimeType : getMimeType(file);//file.mimeType;
+        serverSocket = new ServerSocket(0);
+        mainThread = new Thread(new Runnable(){
+            @Override
+            public void run(){
+                try{
+                    while(true) {
+                        Socket accept = serverSocket.accept();
+                        new HttpSession(accept);
+                    }
+                }catch(IOException e){
+                    e.printStackTrace();
+                }
+            }
+
+        });
+        mainThread.setName("Stream over HTTP");
+        mainThread.setDaemon(true);
+        mainThread.start();
+    }
 
     public String getMimeType(AssetFileDescriptor file)
     {
@@ -135,7 +161,7 @@ public class StreamOverHttp {
 
         private void openInputStream() throws IOException{
             // openRandomAccessInputStream must return RandomAccessInputStream if file is ssekable, null otherwise
-            is = stream;//file.createInputStream();//
+            is =  file.createInputStream();//new FileInputStream(file);//stream;//
 //            is = new FileInputStream(file);//file.openRandomAccessInputStream(file);
             if(is!=null)
                 canSeek = true;

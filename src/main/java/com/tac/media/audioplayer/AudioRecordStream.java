@@ -39,6 +39,8 @@ public class AudioRecordStream extends AudioRecord {
 //    = new short[BUFFER_ELEMENTS_2_REC];
     private IKCodec mCodec;
     private File mRecordFile;
+    private long mStartTime = 0;
+    private long mTmpTime = 0;
 
     /**
      * Class constructor.
@@ -85,6 +87,8 @@ public class AudioRecordStream extends AudioRecord {
                 writeAudioDataToFile();
             }
         }, "AudioRecorder Thread");
+        mStartTime = System.currentTimeMillis();
+        mTmpTime = mStartTime;
         mRecordingThread.start();
     }
 
@@ -141,6 +145,16 @@ public class AudioRecordStream extends AudioRecord {
                     byte[] encoded = mCodec.encode(data);
                     dataCounter += encoded.length;
                     fileOutputStream.write(encoded);
+
+                    long endTime = System.currentTimeMillis();
+                    long diff = (endTime - mTmpTime);
+                    if(diff > 1000){ // one second
+                        mRecordUpdate.updateTime(endTime - mStartTime);
+                        long diffSeconds = diff / 1000;
+                        long diffMinutes = diff / (60 * 1000);
+
+                        mTmpTime = endTime;
+                    }
                 }
             } catch (FileNotFoundException e) {
                 Log.e(TAG, "No file Found", e);
@@ -196,16 +210,18 @@ public class AudioRecordStream extends AudioRecord {
             value += data[i];
         }
         value = Math.abs(value) / data.length;
-        return value / 33f;// 33 max value of short
+        return value / 16f;// 33 max value of short
     }
 
     private float getAverageValue(byte[] data) {
         float value = 0f;
-        for (int i = 0; i < data.length; i++) {
-            value += data[i];
+        for (int i = 0; i < data.length; i+=2) {
+            short n1 = (short)((data[i] & 0xFF) | data[i+1]<<8);
+
+            value += n1;
         }
-        value = value / data.length;
-        return value / 255f; // 255 max value of byte
+        value = value / (data.length / 2);
+        return value / 16f;//255f; // 255 max value of byte
     }
 
     private float getAverageValue(ByteBuffer data) {
