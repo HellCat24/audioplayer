@@ -1,13 +1,23 @@
 package com.tac.media.audioplayer;
 
+import android.app.Activity;
 import android.content.res.AssetFileDescriptor;
 import android.net.Uri;
+import android.os.Environment;
+import android.util.Log;
 import android.webkit.MimeTypeMap;
+
+import com.tac.AccessInputStream;
+import com.tac.kulik.codec.KGSMCodec;
+import com.tac.kulik.codec.KGSMDecoder;
+
+import org.apache.http.util.ByteArrayBuffer;
 
 import java.io.BufferedReader;
 import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.FileInputStream;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -16,6 +26,8 @@ import java.io.PrintWriter;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.net.URLEncoder;
+import java.util.Arrays;
+import java.util.Date;
 import java.util.Enumeration;
 import java.util.Properties;
 import java.util.StringTokenizer;
@@ -25,15 +37,22 @@ import java.util.StringTokenizer;
  */
 public class StreamOverHttp {
     private static final boolean debug = false;
+    private static final String TAG = "StreamOverHttp";
 
+    private final File file;
 //    private final AssetFileDescriptor file;
-    private final String fileMimeType;
+    private String fileMimeType;
     private long fileSize;
 
     private final ServerSocket serverSocket;
     private Thread mainThread;
     private String name;
-    private InputStream stream;
+
+    static KGSMDecoder mDecoder;
+    private boolean isNeedDecode;
+    private static final byte[] NEED_DECODE_STREAM = new byte[]{0x52, 0x49, 0x46, 0x46};
+    private static String AUDIO_DECODE_TYPE = "audio/x-wav";
+//    private InputStream stream;
     /**
      * Some HTTP response status codes
      */
@@ -42,11 +61,12 @@ public class StreamOverHttp {
             HTTP_416 = "416 Range not satisfiable",
             HTTP_INTERNALERROR = "500 Internal Server Error";
 
-    public StreamOverHttp(InputStream stream, String forceMimeType, long length, String name) throws IOException{
-        this.stream = stream;
-        fileSize = length;
+    public StreamOverHttp(File f,
+                          String forceMimeType, String name) throws IOException{
+        file = f;
+        fileSize = file.length();
         this.name = name;
-        fileMimeType = "audio/mpeg";//forceMimeType!=null ? forceMimeType : "";//getMimeType(file);//file.mimeType;
+        fileMimeType = AUDIO_DECODE_TYPE;//getMimeType(f);//forceMimeType;//!=null ? forceMimeType : getMimeType(file);//file.mimeType;
         serverSocket = new ServerSocket(0);
         mainThread = new Thread(new Runnable(){
             @Override
@@ -67,31 +87,6 @@ public class StreamOverHttp {
         mainThread.start();
     }
 
-//    public StreamOverHttp(AssetFileDescriptor f, String forceMimeType, String name) throws IOException{
-//        file = f;
-//        fileSize = file.getLength();
-//        this.name = name;
-//        fileMimeType = forceMimeType!=null ? forceMimeType : getMimeType(file);//file.mimeType;
-//        serverSocket = new ServerSocket(0);
-//        mainThread = new Thread(new Runnable(){
-//            @Override
-//            public void run(){
-//                try{
-//                    while(true) {
-//                        Socket accept = serverSocket.accept();
-//                        new HttpSession(accept);
-//                    }
-//                }catch(IOException e){
-//                    e.printStackTrace();
-//                }
-//            }
-//
-//        });
-//        mainThread.setName("Stream over HTTP");
-//        mainThread.setDaemon(true);
-//        mainThread.start();
-//    }
-
     public String getMimeType(AssetFileDescriptor file)
     {
         String type = null;
@@ -102,9 +97,20 @@ public class StreamOverHttp {
         }
         return type;
     }
+
+    public String getMimeType(File file)
+    {
+        String type = null;
+        String extension = MimeTypeMap.getFileExtensionFromUrl(file.getAbsolutePath());
+        if (extension != null) {
+            MimeTypeMap mime = MimeTypeMap.getSingleton();
+            type = mime.getMimeTypeFromExtension(extension);
+        }
+        return type;
+    }
     private class HttpSession implements Runnable{
         private boolean canSeek;
-        private InputStream is;
+        private AccessInputStream is;
         private final Socket socket;
 
         HttpSession(Socket s){
@@ -135,12 +141,37 @@ public class StreamOverHttp {
 
         private void openInputStream() throws IOException{
             // openRandomAccessInputStream must return RandomAccessInputStream if file is ssekable, null otherwise
-            is = stream;//file.createInputStream();//
-//            is = new FileInputStream(file);//file.openRandomAccessInputStream(file);
-            if(is!=null)
+            is =  new AccessInputStream(file);//file.createInputStream();//a.getAssets().open(name);//stream;//file.createInputStream();//
+            if(is!=null) {
                 canSeek = true;
-//            else
-//                is = openInputStream(file, 0);
+                isNeedDecode = isNeedDecodeStream(is);
+                if(isNeedDecode){
+                    mDecoder = new KGSMDecoder();
+                    fileMimeType =  AUDIO_DECODE_TYPE;
+                    fileSize = (( file.length() - 60 ) / 65) * (4 * mDecoder.BUFFER_LENGTH);
+                }
+            }
+        }
+
+        private boolean isNeedDecodeStream(InputStream is) {
+            boolean result = false;
+            byte[] bytes = new byte[21];
+            try {
+                is.mark(0);
+                is.read(bytes, 0, 21);
+                result =  (bytes[0] == NEED_DECODE_STREAM[0]) && (bytes[1] == NEED_DECODE_STREAM[1])
+                        && (bytes[2] == NEED_DECODE_STREAM[2]) &&(bytes[3] == NEED_DECODE_STREAM[3])// 4 bytes for RIFF
+                        && (bytes[20] == 0x31); // it gsm rather then wav
+                if(result) {
+                    is.skip(39);
+                }else{
+                    is.reset();
+                }
+//                is =  new FileInputStream(file);
+            } catch (IOException e) {
+                Log.e(TAG, e.toString(), e);
+            }
+            return result;
         }
 
         private void handleResponse(Socket socket){
@@ -165,7 +196,7 @@ public class StreamOverHttp {
 
                 Properties headers = new Properties();
                 if(fileSize!=-1)
-                    headers.put("Content-Length", String.valueOf(fileSize));
+                    headers.put("Content-Length", String.valueOf( fileSize ) );
                 headers.put("Accept-Ranges", canSeek ? "bytes" : "none");
 
                 int sendCount;
@@ -204,14 +235,15 @@ public class StreamOverHttp {
                     sendCount = (int)(endAt - startFrom + 1);
                     if(sendCount < 0)
                         sendCount = 0;
+
                     status = "206 Partial Content";
-                    ((RandomAccessInputStream)is).seek(startFrom);
+                    is.seek(startFrom);
 
                     headers.put("Content-Length", "" + sendCount);
                     String rangeSpec = "bytes " + startFrom + "-" + endAt + "/" + fileSize;
                     headers.put("Content-Range", rangeSpec);
                 }
-                sendResponse(socket, status, fileMimeType, headers, is, sendCount, buf, null);
+                sendResponse(socket, status, fileMimeType, headers, is, sendCount, null);
                 inS.close();
 //                if(debug)
 //                    BrowserUtils.LOGRUN("Http stream finished");
@@ -292,26 +324,53 @@ public class StreamOverHttp {
      * Returns an error message as a HTTP response and
      * throws InterruptedException to stop further request processing.
      */
-    private static void sendError(Socket socket, String status, String msg) throws InterruptedException{
-        sendResponse(socket, status, "text/plain", null, null, 0, null, msg);
+    private void sendError(Socket socket, String status, String msg) throws InterruptedException{
+        sendResponse(socket, status, "text/plain", null, null, 0, msg);
         throw new InterruptedException();
     }
 
-    private static void copyStream(InputStream in, OutputStream out, byte[] tmpBuf, long maxSize) throws IOException{
+    private void copyStream(InputStream in, OutputStream out,long maxSize) throws IOException{
 
-        while(maxSize>0){
-            int count = (int)Math.min(maxSize, tmpBuf.length);
-            count = in.read(tmpBuf, 0, count);
-            if(count<0)
-                break;
-            out.write(tmpBuf, 0, count);
-            maxSize -= count;
+        if (isNeedDecode) {
+            byte[] tmpBuf = new byte[mDecoder.getReadBufferLength()];
+            char[] header = new char[]{0x52, 0x49, 0x46, 0x46,
+                    0x00, 0x01, 0x92,  0xC0,
+                    0x57, 0x41, 0x56, 0x45, 0x66, 0x6D, 0x74, 0x20, 0x10, 0x00, 0x00,
+                    0x00, 0x01, 0x00, 0x01, 0x00, 0x40, 0x1F, 0x00, 0x00, 0x80, 0x3E, 0x00,
+                    0x00, 0x02, 0x00, 0x10, 0x00, 0x64, 0x61, 0x74, 0x61,
+                    0x00, 0x01, 0x92, 0x80};
+            ByteArrayBuffer nn = new ByteArrayBuffer(header.length);
+            nn.append(header, 0, header.length);
+            out.write(nn.buffer(), 0, nn.buffer().length);
+            int count = 0;
+            while (count != -1){
+                count = in.read(tmpBuf, 0, tmpBuf.length);
+                if (count < 0) {
+                    break;
+                }
+                if (count == tmpBuf.length) {
+                    byte[]  decodeBuf = mDecoder.decode(tmpBuf);
+                    out.write(decodeBuf, 0, decodeBuf.length);
+                }
+            }
+        } else {
+
+            byte[] tmpBuf = new byte[8192];
+            while (maxSize > 0) {
+                int count = (int) Math.min(maxSize, tmpBuf.length);
+                count = in.read(tmpBuf, 0, count);//in.read(tmpBuf, 0, count);
+
+                if (count < 0)
+                    break;
+                out.write(tmpBuf, 0, count);
+                maxSize -= count;
+            }
         }
     }
     /**
      * Sends given response to the socket, and closes the socket.
      */
-    private static void sendResponse(Socket socket, String status, String mimeType, Properties header, InputStream isInput, int sendCount, byte[] buf, String errMsg){
+    private void sendResponse(Socket socket, String status, String mimeType, Properties header, InputStream isInput, int sendCount, String errMsg){
         try{
             OutputStream out = socket.getOutputStream();
             PrintWriter pw = new PrintWriter(out);
@@ -337,7 +396,7 @@ public class StreamOverHttp {
             pw.print("\r\n");
             pw.flush();
             if(isInput!=null)
-                copyStream(isInput, out, buf, sendCount);
+                copyStream(isInput, out, sendCount);
             else if(errMsg!=null) {
                 pw.print(errMsg);
                 pw.flush();

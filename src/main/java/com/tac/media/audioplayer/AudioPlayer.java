@@ -9,6 +9,7 @@ import android.media.MediaPlayer;
 import android.media.MediaPlayer.OnErrorListener;
 import android.media.MediaPlayer.OnPreparedListener;
 import android.media.RemoteControlClient;
+import android.net.Uri;
 import android.net.wifi.WifiManager;
 import android.net.wifi.WifiManager.WifiLock;
 import android.os.Handler;
@@ -72,6 +73,8 @@ public class AudioPlayer implements OnPreparedListener, OnErrorListener, MusicFo
     private AudioRecordStream mRecorderStream;
 
     private IRecordUpdate mRecordListener;
+
+    private StreamOverHttp mStreamServer;
 
     private TimerTask mUpdateProgressTask = new TimerTask() {
         public void run() {
@@ -198,6 +201,53 @@ public class AudioPlayer implements OnPreparedListener, OnErrorListener, MusicFo
             mAudioFocus = AudioFocus.Focused;
     }
 
+    public void playAsStream(File f){
+        mCurrentState = State.Stopped;
+        relaxResources(false); // release everything except MediaPlayer
+        try {
+            mStreamServer = new StreamOverHttp(f, null, f.getName());
+            Uri uri = mStreamServer.getUri(f.getName());
+
+            mPlayer = MediaPlayer.create(mContext, uri);
+            mPlayer.setWakeMode(mContext, PowerManager.PARTIAL_WAKE_LOCK);
+            mPlayer.setOnPreparedListener(this);
+            mPlayer.setOnErrorListener(this);
+            mPlayer.setOnCompletionListener(this);
+            mCurrentState = State.Preparing;
+            mPlayer.start();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        mCurrentState = State.Stopped;
+        relaxResources(false); // release everything except MediaPlayer
+//        if(f != null){
+//            try {
+////            mStreamServer = new StreamOverHttp(f, null, f.getName());
+////            Uri uri = mStreamServer.getUri(f.getName());
+////            mPlayer = MediaPlayer.create(mContext, uri);
+////            mPlayer.setWakeMode(mContext, PowerManager.PARTIAL_WAKE_LOCK);
+////            mPlayer.setOnPreparedListener(this);
+////            mPlayer.setOnErrorListener(this);
+////            mPlayer.setOnCompletionListener(this);
+////                mIsStreaming = true;
+////                mPlayer.start();
+////            mPlayer.prepareAsync();
+//                createMediaPlayerIfNeeded();
+//                mPlayer.setAudioStreamType(AudioManager.STREAM_MUSIC);
+//
+//                mStreamServer = new StreamOverHttp(f, null, f.getName());
+//                Uri uri = mStreamServer.getUri(f.getName());
+//                mPlayer.setDataSource(uri.toString());
+//                mCurrentState = State.Preparing;
+//                mPlayer.prepareAsync();
+//            } catch (IOException e) {
+//                e.printStackTrace();
+//            }
+//        }else{
+//            return;
+//        }
+    }
+
     void playSong(String manualUrl) {
         Log.i(TAG, "debug: playSong " + manualUrl);
         mCurrentState = State.Stopped;
@@ -289,8 +339,16 @@ public class AudioPlayer implements OnPreparedListener, OnErrorListener, MusicFo
     @Override
     public void stop() {
         mHandler.removeCallbacks(mUpdateProgressTask);
+        stopServer();
         mRemoteControlClient.setPlaybackState(RemoteControlClient.PLAYSTATE_STOPPED);
         processStopRequest(false);
+    }
+
+    private void stopServer() {
+        if(mStreamServer != null){
+            mStreamServer.close();
+            mStreamServer = null;
+        }
     }
 
     @Override
