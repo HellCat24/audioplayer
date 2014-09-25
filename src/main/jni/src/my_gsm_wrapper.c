@@ -28,7 +28,7 @@ JNIEXPORT void JNICALL Java_com_tac_kulik_codec_KGSMCodec_initGSM(JNIEnv* env, j
        LOGI("Create Handle");
        if (!(handle = gsm_create())) LOGE("Error creating gsm");
 
-        int valueP=1;
+       int valueP=1;
         int      f_fast     = 0;         /* use faster fpt algorithm      (-F) */
         int      f_verbose  = 0;         /* debugging                     (-V) */
         int      f_ltp_cut  = 0;         /* LTP cut-off margin            (-   */
@@ -61,10 +61,14 @@ JNIEXPORT void JNICALL Java_com_tac_kulik_codec_KGSMCodec_encode(JNIEnv* env, jo
         LOGE("output dnt retrived");
     }
     int i = 0;
-    for (;i < frameCount * 2; i++) {
+    for (;i < frameCount; i++) {
         gsm_encode(handle, cInput, cOutput);
         cInput = (cInput) + 160;
         cOutput = (cOutput) + 33;
+        gsm_encode(handle, cInput, cOutput);
+        cInput = (cInput) + 160;
+        cOutput = (cOutput) + 33;
+
     }
     (*env)->ReleaseByteArrayElements(env, input, initialInput, JNI_ABORT);
 }

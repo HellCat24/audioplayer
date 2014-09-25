@@ -209,15 +209,19 @@ public class AudioPlayer implements OnPreparedListener, OnErrorListener, MusicFo
             Uri uri = mStreamServer.getUri(f.getName());
 
             mPlayer = MediaPlayer.create(mContext, uri);
-            mPlayer.setWakeMode(mContext, PowerManager.PARTIAL_WAKE_LOCK);
-            mPlayer.setOnPreparedListener(this);
-            mPlayer.setOnErrorListener(this);
-            mPlayer.setOnCompletionListener(this);
-            mCurrentState = State.Preparing;
-            mPlayer.start();
+            //TODO mPlayer can be null
+            if (mPlayer != null) {
+                mPlayer.setWakeMode(mContext, PowerManager.PARTIAL_WAKE_LOCK);
+                mPlayer.setOnPreparedListener(this);
+                mPlayer.setOnErrorListener(this);
+                mPlayer.setOnCompletionListener(this);
+                mCurrentState = State.Preparing;
+                mPlayer.start();
+            }
         } catch (IOException e) {
             e.printStackTrace();
         }
+        //Some strange logic
         mCurrentState = State.Stopped;
         relaxResources(false); // release everything except MediaPlayer
 //        if(f != null){

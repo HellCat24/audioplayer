@@ -22,6 +22,13 @@ import java.util.Date;
  */
 public class AudioRecordStream extends AudioRecord {
 
+    private static final byte[] STUB = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+
+
     private static final String TAG = AudioRecordStream.class.getSimpleName();
 
     private static final int BUFFER_ELEMENTS_2_REC = 1024; // want to play 2048 (2K) since 2 bytes we use only 1024
@@ -131,16 +138,18 @@ public class AudioRecordStream extends AudioRecord {
 
     private void writeAudioDataToFile() {
         int dataCounter = 0;
-        byte[] data = new byte[0];
+        byte[] data ;
         if (mCodec != null) {
             FileOutputStream fileOutputStream = null;
             try {
                 fileOutputStream = new FileOutputStream(mRecordFile);
+                fileOutputStream.write(STUB);
+                long before = System.currentTimeMillis();
                 while (mIsRecording) {
                     data = new byte[mCodec.getReadBufferLength()];
                     int length = read(data, 0, data.length);
                     if (length < 0) {
-                        throw new IllegalStateException("WTF");
+                       break;
                     }
                     byte[] encoded = mCodec.encode(data);
                     dataCounter += encoded.length;
@@ -149,13 +158,14 @@ public class AudioRecordStream extends AudioRecord {
                     long endTime = System.currentTimeMillis();
                     long diff = (endTime - mTmpTime);
                     if(diff > 1000){ // one second
-                        mRecordUpdate.updateTime(endTime - mStartTime);
+                        //TODO wrong place to update timer more useful is create timer task with seconds, and start it on start and finish on stop recording
+//                        mRecordUpdate.updateTime(endTime - mStartTime);
                         long diffSeconds = diff / 1000;
                         long diffMinutes = diff / (60 * 1000);
 
                         mTmpTime = endTime;
                     }
-                }
+                 }
             } catch (FileNotFoundException e) {
                 Log.e(TAG, "No file Found", e);
             } catch (IOException e) {
@@ -170,6 +180,7 @@ public class AudioRecordStream extends AudioRecord {
             writeFileHeaders(mRecordFile, dataCounter);
         } else {
             while (mIsRecording) {
+                data = new byte[0];
                 read(data, 0, BUFFER_ELEMENTS_2_REC);
                 //TODO write Data to regular file
             }
@@ -189,12 +200,17 @@ public class AudioRecordStream extends AudioRecord {
     }
 
     private byte[] getHeader(int dataCounter) {
-//        WaveHeader h = new WaveHeader(WaveHeader.FORMAT_PCM, 1, 8000,  160, dataCounter);
-        char[] wavHeaderBytes = {0x52, 0x49, 0x46, 0x46,
-                0x00, 0x01, 0x92, 0xC0, // all size - 8
-                0x57, 0x41, 0x56, 0x45, 0x66, 0x6D, 0x74, 0x20, 0x10, 0x00, 0x00, 0x00, 0x01, 0x00, 0x01, 0x00, 0x40, 0x1F, 0x00, 0x00, 0x80, 0x3E, 0x00, 0x00, 0x02, 0x00, 0x10, 0x00, 0x64, 0x61, 0x74, 0x61,
-                 // size with out header
-                };
+//        WaveHeader h = new WaveHeader(WaveHeader.FORMAT_PCM, (short)1, 8000,  (short)16, dataCounter);
+
+        char[] wavHeaderBytes = {0x52, 0x49, 0x46, 0x46, 0x17, 0x09, 0x00, 0x00, 0x57, 0x41, 0x56, 0x45, 0x66, 0x6D, 0x74, 0x20, 0x14, 0x00, 0x00, 0x00, 0x31, 0x00, 0x01, 0x00, 0x40, 0x1F, 0x00, 0x00, 0x59, 0x06, 0x00, 0x00, 0x41,
+                0x00, 0x00, 0x00, 0x02, 0x00, 0x40, 0x01, 0x66, 0x61, 0x63, 0x74, 0x04, 0x00, 0x00, 0x00, 0x2C, 0x2B, 0x00, 0x00, 0x64, 0x61, 0x74, 0x61};
+//        int headerSize = 56;
+
+//                {0x52, 0x49, 0x46, 0x46,
+//                0x00, 0x01, 0x92, 0xC0, // all size - 8
+//                0x57, 0x41, 0x56, 0x45, 0x66, 0x6D, 0x74, 0x20, 0x10, 0x00, 0x00, 0x00, 0x01, 0x00, 0x01, 0x00, 0x40, 0x1F, 0x00, 0x00, 0x80, 0x3E, 0x00, 0x00, 0x02, 0x00, 0x10, 0x00, 0x64, 0x61, 0x74, 0x61,
+//                // size with out header
+//        };
         ByteArrayBuffer nn = new ByteArrayBuffer(wavHeaderBytes.length + 4);
         nn.append(wavHeaderBytes, 0, wavHeaderBytes.length);
         nn.append(dataCounter >> 0);
@@ -233,14 +249,14 @@ public class AudioRecordStream extends AudioRecord {
     }
 
     public void setRecordFile(File recordFile) {
-//        mRecordFile = recordFile;
-        File dir = new File("/sdcard/notate");
-        dir.mkdirs();
-        mRecordFile = new File(dir, "f" + new Date() + ".raw");
-        try {
-            mRecordFile.createNewFile();
-        } catch (IOException e) {
-            Log.e(TAG, "stub problem");
-        }
+        mRecordFile = recordFile;
+//        File dir = new File("/sdcard/notate");
+//        dir.mkdirs();
+//        mRecordFile = new File(dir, "f" + new Date() + ".raw");
+//        try {
+//            mRecordFile.createNewFile();
+//        } catch (IOException e) {
+//            Log.e(TAG, "stub problem");
+//        }
     }
 }
