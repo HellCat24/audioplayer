@@ -15,7 +15,7 @@ public class KGSMCodec implements IKCodec {
 
     public KGSMCodec() {
         System.loadLibrary("gsm");
-        mOut = ByteBuffer.allocateDirect((33 + 32) * FRAMES_COUNT);
+        mOut = ByteBuffer.allocateDirect((33 + 33) * FRAMES_COUNT);
         initGSM();
     }
 

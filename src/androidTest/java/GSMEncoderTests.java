@@ -1,7 +1,8 @@
-package com.tac.kulik.codec;
-
 import android.test.AndroidTestCase;
 import android.util.Log;
+
+import com.tac.kulik.codec.KGSMCodec;
+import com.tac.kulik.codec.WaveHeader;
 
 import org.apache.http.util.ByteArrayBuffer;
 
@@ -19,7 +20,7 @@ public class GSMEncoderTests extends AndroidTestCase {
 
     private static final String TAG = "GSMTest";
 
-    public void encode() {
+    public void testEncode() {
 
         File dir = new File("/sdcard/notate");
         dir.mkdirs();
@@ -31,7 +32,7 @@ public class GSMEncoderTests extends AndroidTestCase {
         }
         FileOutputStream fileOutputStream = null;
         try {
-            String name = "recorded.raw";
+            String name = "ios_note_dec.raw";
             InputStream stream = getContext().getAssets().open(name);
             KGSMCodec mCodec = new KGSMCodec();
             int dataCounter = 0;
@@ -73,8 +74,7 @@ public class GSMEncoderTests extends AndroidTestCase {
     }
 
     private byte[] getHeader(int dataCounter) {
-//        WaveHeader h = new WaveHeader(WaveHeader.FORMAT_PCM, 1, 8000,  160, dataCounter);
-
+//        WaveHeader h = new WaveHeader(WaveHeader.FORMAT_PCM, (short)1, 8000,  (short)16, dataCounter);
 
         char[] wavHeaderBytes = {0x52, 0x49, 0x46, 0x46, 0x17, 0x09, 0x00, 0x00, 0x57, 0x41, 0x56, 0x45, 0x66, 0x6D, 0x74, 0x20, 0x14, 0x00, 0x00, 0x00, 0x31, 0x00, 0x01, 0x00, 0x40, 0x1F, 0x00, 0x00, 0x59, 0x06, 0x00, 0x00, 0x41,
                 0x00, 0x00, 0x00, 0x02, 0x00, 0x40, 0x01, 0x66, 0x61, 0x63, 0x74, 0x04, 0x00, 0x00, 0x00, 0x2C, 0x2B, 0x00, 0x00, 0x64, 0x61, 0x74, 0x61};

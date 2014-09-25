@@ -28,14 +28,14 @@ JNIEXPORT void JNICALL Java_com_tac_kulik_codec_KGSMCodec_initGSM(JNIEnv* env, j
        LOGI("Create Handle");
        if (!(handle = gsm_create())) LOGE("Error creating gsm");
 
-       int valueP=1;
+        int valueP=1;
         int      f_fast     = 0;         /* use faster fpt algorithm      (-F) */
         int      f_verbose  = 0;         /* debugging                     (-V) */
         int      f_ltp_cut  = 0;         /* LTP cut-off margin            (-   */
-       if(gsm_option(handle,GSM_OPT_WAV49,&valueP) == -1) {
-           LOGE("error setting gsm_option for WAV49 format. Recompile gsm library with -DWAV49 option and relink sox");
-           return 0;
-       }
+//       if(gsm_option(handle,GSM_OPT_WAV49,&valueP) == -1) {
+//           LOGE("error setting gsm_option for WAV49 format. Recompile gsm library with -DWAV49 option and relink sox");
+//           return 0;
+//       }
         if(gsm_option(handle, GSM_OPT_FAST, &f_fast)) {
             LOGE("GSM_OPT_FAST wrong");
             return 0;
@@ -48,6 +48,25 @@ JNIEXPORT void JNICALL Java_com_tac_kulik_codec_KGSMCodec_initGSM(JNIEnv* env, j
             LOGE("GSM_OPT_LTP_CUT wrong");
             return 0;
         }
+}
+
+JNIEXPORT void JNICALL Java_com_tac_kulik_codec_KGSMCodec_encode(JNIEnv* env, jobject thiz, jbyteArray input, jbyteArray output, jint frameCount) {
+    gsm_signal* cInput =(gsm_signal*) (*env)->GetByteArrayElements(env,input, NULL);
+    if (cInput == NULL) {
+        LOGE("input dnt retrived");
+    }
+    char* initialInput = cInput;
+    char* cOutput = (char*) (*env)->GetDirectBufferAddress(env, output);
+    if (cOutput == NULL) {
+        LOGE("output dnt retrived");
+    }
+    int i = 0;
+    for (;i < frameCount * 2; i++) {
+        gsm_encode(handle, cInput, cOutput);
+        cInput = (cInput) + 160;
+        cOutput = (cOutput) + 33;
+    }
+    (*env)->ReleaseByteArrayElements(env, input, initialInput, JNI_ABORT);
 }
 
 JNIEXPORT void JNICALL Java_com_tac_kulik_codec_KGSMDecoder_initGSM(JNIEnv* env, jobject thiz )
@@ -81,48 +100,7 @@ JNIEXPORT void JNICALL Java_com_tac_kulik_codec_KGSMDecoder_initGSM(JNIEnv* env,
         }
 }
 
-
-JNIEXPORT void JNICALL Java_com_tac_kulik_codec_KGSMCodec_encode(JNIEnv* env, jobject thiz, jbyteArray input, jbyteArray output, jint frameCount) {
-//    jbyte* cInput = (*env)->GetByteArrayElements(env,input, NULL);
-//    gsm_signal* cInput = (gsm_signal*) (*env)->GetPrimitiveArrayCritical(env, input, NULL);
-    char* cInput = (*env)->GetByteArrayElements(env,input, NULL);
-    if (cInput == NULL) {
-        LOGE("input dnt retrived");
-    }
-    char* initialInput = cInput;
-    char* cOutput = (char*) (*env)->GetDirectBufferAddress(env, output);
-    if (cOutput == NULL) {
-        LOGE("output dnt retrived");
-    }
-//    char* cOutput = (char*) (*env)->GetPrimitiveArrayCritical(env, output, NULL);
-//    jbyte* cOutput = (*env)->GetByteArrayElements(env, output, NULL);
-//    printf("%d ", (jbyte[])* cOutput);
-//        LOGE("output dnt retrived --%d", sizeof(gsm_signal));
-//    LOGE( sizeof(gsm_frame));
-//    jbyte* b = env->GetByteArrayElements(input, NULL);
-//     jbyte* b = (jbyte*) (*env)->GetByteArrayElements(input, NULL);
-//    jbyte* bout = env->GetByteArrayElements(output, NULL);
-    int i = 0;
-    for (;i < frameCount; i++) {
-        gsm_encode(handle, cInput, cOutput);
-        cInput = (cInput) + 160 * sizeof(gsm_signal);
-        cOutput = (cOutput) + 33;
-        gsm_encode(handle, cInput, cOutput);
-        cInput = (cInput) + 160 * sizeof(gsm_signal);
-        cOutput = (cOutput) + 32;
-
-    }
-        (*env)->ReleaseByteArrayElements(env, input, initialInput, JNI_ABORT);
-//        env->ReleaseByteArrayElements(env, output, cOutput, JNI_ABORT);
-//    (*env)->ReleasePrimitiveArrayCritical(env, input, b, 0);
-//    (*env)->ReleasePrimitiveArrayCritical(env, output, bout, 0);
-
-}
-
-
 JNIEXPORT void JNICALL Java_com_tac_kulik_codec_KGSMDecoder_decode(JNIEnv* env, jobject thiz, jbyteArray input, jbyteArray output, jint frameCount) {
-//    jbyte* cInput = (*env)->GetByteArrayElements(env,input, NULL);
-//    gsm_signal* cInput = (gsm_signal*) (*env)->GetPrimitiveArrayCritical(env, input, NULL);
     char* cInput = (*env)->GetByteArrayElements(env,input, NULL);
     if (cInput == NULL) {
         LOGE("input dnt retrived");
@@ -132,7 +110,6 @@ JNIEXPORT void JNICALL Java_com_tac_kulik_codec_KGSMDecoder_decode(JNIEnv* env, 
     if (cOutput == NULL) {
         LOGE("output dnt retrived");
     }
-
     int i = 0;
     for (;i < frameCount; i++) {
         if (gsm_decode(handle, cInput, cOutput) < 0) printf("fail to decode\n");
@@ -143,58 +120,4 @@ JNIEXPORT void JNICALL Java_com_tac_kulik_codec_KGSMDecoder_decode(JNIEnv* env, 
         cOutput = (cOutput) + 160 * sizeof(gsm_signal);
     }
         (*env)->ReleaseByteArrayElements(env, input, initialInput, JNI_ABORT);
-//        env->ReleaseByteArrayElements(env, output, cOutput, JNI_ABORT);
-//    (*env)->ReleasePrimitiveArrayCritical(env, input, b, 0);
-//    (*env)->ReleasePrimitiveArrayCritical(env, output, bout, 0);
-
 }
-
-//{
-//    jbyte *b = (jbyte *)env->GetByteArrayElements(input, NULL);
-//    jsize len = (*env)->GetArrayLength(env, arr);
-
-//    gsm handle;
-//    gsm_frame buf;
-//    gsm_signal sample[160];
-//    int cc, soundfd;
-
-//    if (!(handle = gsm_create())) LOGE("Error creating gsm");
-
-//    int sample_counter = 0;
-//    for (int i = 0; i < len; i+= sizeof buf)
-
-//            if (cc != sizeof buf) error...
-
-//                    if (gsm_decode(handle, buf, sample) < 0) error...
-
-//                    if (write(soundfd, sample, sizeof sample) != sizeof sample) error...
-
-//        }
-
-//    gsm_destroy(handle);
-
-//}
-//record() {
-//    /* read from soundfd, write compressed to standard output */
-
-//    if (!(handle = gsm_create())) error...
-
-//            while (cc = read(soundfd, sample, sizeof sample)) {
-
-//        if (cc != sizeof sample) error...
-
-//                gsm_encode(handle, sample, buf);
-
-//        if (write(1, (char *)buf, sizeof buf) != sizeof sample)
-
-//            error...
-
-//    }
-
-//        gsm_destroy(handle);
-
-//}
-//// release it
-//env->ReleaseByteArrayElements(jbBase, b, 0 );
-//return 0;
-//}
