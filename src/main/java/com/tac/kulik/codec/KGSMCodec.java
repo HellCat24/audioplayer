@@ -10,12 +10,12 @@ import java.nio.ByteBuffer;
 public class KGSMCodec implements IKCodec {
 
     public static final int BUFFER_LENGTH = 160;
-    public static final int FRAMES_COUNT = 1;
+    public static final int FRAMES_COUNT = 8;
     private final ByteBuffer mOut;
 
     public KGSMCodec() {
         System.loadLibrary("gsm");
-        mOut = ByteBuffer.allocateDirect((33 + 33) * FRAMES_COUNT);
+        mOut = ByteBuffer.allocateDirect((32 + 33) * FRAMES_COUNT);
         initGSM();
     }
 

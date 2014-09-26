@@ -32,10 +32,10 @@ JNIEXPORT void JNICALL Java_com_tac_kulik_codec_KGSMCodec_initGSM(JNIEnv* env, j
         int      f_fast     = 0;         /* use faster fpt algorithm      (-F) */
         int      f_verbose  = 0;         /* debugging                     (-V) */
         int      f_ltp_cut  = 0;         /* LTP cut-off margin            (-   */
-//       if(gsm_option(handle,GSM_OPT_WAV49,&valueP) == -1) {
-//           LOGE("error setting gsm_option for WAV49 format. Recompile gsm library with -DWAV49 option and relink sox");
-//           return 0;
-//       }
+       if(gsm_option(handle,GSM_OPT_WAV49,&valueP) == -1) {
+           LOGE("error setting gsm_option for WAV49 format. Recompile gsm library with -DWAV49 option and relink sox");
+           return 0;
+       }
         if(gsm_option(handle, GSM_OPT_FAST, &f_fast)) {
             LOGE("GSM_OPT_FAST wrong");
             return 0;
@@ -64,7 +64,7 @@ JNIEXPORT void JNICALL Java_com_tac_kulik_codec_KGSMCodec_encode(JNIEnv* env, jo
     for (;i < frameCount; i++) {
         gsm_encode(handle, cInput, cOutput);
         cInput = (cInput) + 160;
-        cOutput = (cOutput) + 33;
+        cOutput = (cOutput) + 32;
         gsm_encode(handle, cInput, cOutput);
         cInput = (cInput) + 160;
         cOutput = (cOutput) + 33;

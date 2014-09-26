@@ -31,7 +31,7 @@ public class AudioRecordStream extends AudioRecord {
 
     private static final String TAG = AudioRecordStream.class.getSimpleName();
 
-    private static final int BUFFER_ELEMENTS_2_REC = 1024; // want to play 2048 (2K) since 2 bytes we use only 1024
+    private static final int BUFFER_ELEMENTS_2_REC = 2048; // want to play 2048 (2K) since 2 bytes we use only 1024
     private static final int BYTES_PER_ELEMENT = 2; // 2 bytes in 16bit format
 
     private static final int RECORDER_SAMPLERATE = 8000;
@@ -144,7 +144,6 @@ public class AudioRecordStream extends AudioRecord {
             try {
                 fileOutputStream = new FileOutputStream(mRecordFile);
                 fileOutputStream.write(STUB);
-                long before = System.currentTimeMillis();
                 while (mIsRecording) {
                     data = new byte[mCodec.getReadBufferLength()];
                     int length = read(data, 0, data.length);
