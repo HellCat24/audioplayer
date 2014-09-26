@@ -40,7 +40,7 @@ public class AudioPlayer implements OnPreparedListener, OnErrorListener, MusicFo
 
     public static final float DUCK_VOLUME = 0.1f;
 
-    private static int UPDATE_PERIOD = 1000;
+    public static int UPDATE_PERIOD = 1000;
 
     private MediaPlayer mPlayer = null;
 

@@ -3,6 +3,7 @@ package com.tac.media.audioplayer;
 import android.media.AudioFormat;
 import android.media.AudioRecord;
 import android.media.MediaRecorder;
+import android.os.Handler;
 import android.util.Log;
 
 import com.tac.media.audioplayer.interfaces.IRecordUpdate;
@@ -16,6 +17,7 @@ import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.nio.ByteBuffer;
 import java.util.Date;
+import java.util.TimerTask;
 
 /**
  * Created by dima on 9/19/14.
@@ -49,6 +51,16 @@ public class AudioRecordStream extends AudioRecord {
     private long mStartTime = 0;
     private long mTmpTime = 0;
 
+    private Handler mHandler;
+
+    private TimerTask mUpdateProgressTask = new TimerTask() {
+        public void run() {
+            long endTime = System.currentTimeMillis();
+            long millisecond = endTime - mStartTime;
+            mRecordUpdate.updateTime(millisecond);
+            mHandler.postDelayed(mUpdateProgressTask, AudioPlayer.UPDATE_PERIOD);
+        }
+    };
     /**
      * Class constructor.
      *
@@ -73,12 +85,14 @@ public class AudioRecordStream extends AudioRecord {
      */
     public AudioRecordStream(int audioSource, int sampleRateInHz, int channelConfig, int audioFormat, int bufferSizeInBytes) throws IllegalArgumentException {
         super(audioSource, sampleRateInHz, channelConfig, audioFormat, bufferSizeInBytes);
+        mHandler = new Handler();
     }
 
     public AudioRecordStream() {
         super(MediaRecorder.AudioSource.MIC,
                 RECORDER_SAMPLERATE, RECORDER_CHANNELS,
                 AudioFormat.ENCODING_PCM_16BIT, BUFFER_ELEMENTS_2_REC * BYTES_PER_ELEMENT);
+        mHandler = new Handler();
     }
 
     public void setRecordUpdate(IRecordUpdate record) {
@@ -96,7 +110,9 @@ public class AudioRecordStream extends AudioRecord {
         }, "AudioRecorder Thread");
         mStartTime = System.currentTimeMillis();
         mTmpTime = mStartTime;
+        mHandler.postDelayed(mUpdateProgressTask, AudioPlayer.UPDATE_PERIOD);
         mRecordingThread.start();
+
     }
 
     @Override
@@ -128,6 +144,7 @@ public class AudioRecordStream extends AudioRecord {
     @Override
     public void stop() throws IllegalStateException {
         mIsRecording = false;
+        mHandler.removeCallbacks(mUpdateProgressTask);
         super.stop();
     }
 
@@ -154,18 +171,6 @@ public class AudioRecordStream extends AudioRecord {
                     byte[] encoded = mCodec.encode(data);
                     dataCounter += encoded.length;
                     fileOutputStream.write(encoded);
-
-                    long endTime = System.currentTimeMillis();
-                    long diff = (endTime - mTmpTime);
-
-                    if(diff > 1000){ // one second
-                        //TODO wrong place to update timer more useful is create timer task with seconds, and start it on start and finish on stop recording
-//                        mRecordUpdate.updateTime(endTime - mStartTime);
-                        long diffSeconds = diff / 1000;
-                        long diffMinutes = diff / (60 * 1000);
-
-                        mTmpTime = endTime;
-                    }
                  }
             } catch (FileNotFoundException e) {
                 Log.e(TAG, "No file Found", e);
