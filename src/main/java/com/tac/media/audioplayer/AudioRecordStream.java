@@ -6,6 +6,7 @@ import android.media.MediaRecorder;
 import android.os.Handler;
 import android.util.Log;
 
+import com.tac.media.audioplayer.interfaces.IOutputStreamProvider;
 import com.tac.media.audioplayer.interfaces.IRecordUpdate;
 
 import org.apache.http.util.ByteArrayBuffer;
@@ -14,6 +15,7 @@ import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.OutputStream;
 import java.io.RandomAccessFile;
 import java.nio.ByteBuffer;
 import java.util.Date;
@@ -52,6 +54,7 @@ public class AudioRecordStream extends AudioRecord {
     private long mTmpTime = 0;
 
     private Handler mHandler;
+    private IOutputStreamProvider mOutputSteamProvider;
 
     private TimerTask mUpdateProgressTask = new TimerTask() {
         public void run() {
@@ -158,9 +161,9 @@ public class AudioRecordStream extends AudioRecord {
         int dataCounter = 0;
         byte[] data ;
         if (mCodec != null) {
-            FileOutputStream fileOutputStream = null;
+            OutputStream fileOutputStream = null;
             try {
-                fileOutputStream = new FileOutputStream(mRecordFile);
+                fileOutputStream = mOutputSteamProvider.getFileOutputStream(mRecordFile);//new FileOutputStream(mRecordFile);
                 fileOutputStream.write(STUB);
                 while (mIsRecording) {
                     data = new byte[mCodec.getReadBufferLength()];
@@ -178,7 +181,7 @@ public class AudioRecordStream extends AudioRecord {
                 Log.e(TAG, "IO problem", e);
             } finally {
                 try {
-                    fileOutputStream.close();
+                    if(fileOutputStream != null) fileOutputStream.close();
                 } catch (IOException e) {
                     Log.e(TAG, "IO problem", e);
                 }
@@ -196,10 +199,11 @@ public class AudioRecordStream extends AudioRecord {
     private void writeFileHeaders(File recordFile, int dataCounter) {
 
         try {
-            RandomAccessFile f = new RandomAccessFile(recordFile, "rw");
-            f.seek(0); // to the beginning
-            f.write(getHeader(dataCounter));
-            f.close();
+            mOutputSteamProvider.getWriteHeader(getHeader(dataCounter), recordFile, "rw");
+//            RandomAccessFile f = new RandomAccessFile(recordFile, "rw");
+//            f.seek(0); // to the beginning
+//            f.write(getHeader(dataCounter));
+//            f.close();
         } catch (IOException e) {
             e.printStackTrace();
         }
@@ -267,5 +271,9 @@ public class AudioRecordStream extends AudioRecord {
 //        } catch (IOException e) {
 //            Log.e(TAG, "stub problem");
 //        }
+    }
+
+    public void setOutputStreamProvider(IOutputStreamProvider outputStreamProvider) {
+        mOutputSteamProvider = outputStreamProvider;
     }
 }

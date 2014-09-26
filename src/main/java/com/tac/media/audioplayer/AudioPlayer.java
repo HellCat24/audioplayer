@@ -19,6 +19,8 @@ import android.util.Log;
 import com.tac.kulik.codec.KGSMCodec;
 import com.tac.media.audioplayer.enums.AudioFocus;
 import com.tac.media.audioplayer.enums.State;
+import com.tac.media.audioplayer.interfaces.IInputStreamProvider;
+import com.tac.media.audioplayer.interfaces.IOutputStreamProvider;
 import com.tac.media.audioplayer.interfaces.IRecordUpdate;
 import com.tac.media.audioplayer.interfaces.MusicFocusable;
 import com.tac.media.audioplayer.interfaces.PlayerWrapper;
@@ -75,6 +77,10 @@ public class AudioPlayer implements OnPreparedListener, OnErrorListener, MusicFo
     private IRecordUpdate mRecordListener;
 
     private StreamOverHttp mStreamServer;
+
+    private IOutputStreamProvider mAudioStreamProvider;
+
+    private IInputStreamProvider mInputStreamProvider;
 
     private TimerTask mUpdateProgressTask = new TimerTask() {
         public void run() {
@@ -206,7 +212,7 @@ public class AudioPlayer implements OnPreparedListener, OnErrorListener, MusicFo
         mCurrentState = State.Stopped;
         relaxResources(false); // release everything except MediaPlayer
         try {
-            mStreamServer = new StreamOverHttp(f, null, f.getName());
+            mStreamServer = new StreamOverHttp(f, null, f.getName(), mInputStreamProvider);
             Uri uri = mStreamServer.getUri(f.getName());
 
             mPlayer = MediaPlayer.create(mContext, uri);
@@ -225,32 +231,6 @@ public class AudioPlayer implements OnPreparedListener, OnErrorListener, MusicFo
         //Some strange logic
         mCurrentState = State.Stopped;
         relaxResources(false); // release everything except MediaPlayer
-//        if(f != null){
-//            try {
-////            mStreamServer = new StreamOverHttp(f, null, f.getName());
-////            Uri uri = mStreamServer.getUri(f.getName());
-////            mPlayer = MediaPlayer.create(mContext, uri);
-////            mPlayer.setWakeMode(mContext, PowerManager.PARTIAL_WAKE_LOCK);
-////            mPlayer.setOnPreparedListener(this);
-////            mPlayer.setOnErrorListener(this);
-////            mPlayer.setOnCompletionListener(this);
-////                mIsStreaming = true;
-////                mPlayer.start();
-////            mPlayer.prepareAsync();
-//                createMediaPlayerIfNeeded();
-//                mPlayer.setAudioStreamType(AudioManager.STREAM_MUSIC);
-//
-//                mStreamServer = new StreamOverHttp(f, null, f.getName());
-//                Uri uri = mStreamServer.getUri(f.getName());
-//                mPlayer.setDataSource(uri.toString());
-//                mCurrentState = State.Preparing;
-//                mPlayer.prepareAsync();
-//            } catch (IOException e) {
-//                e.printStackTrace();
-//            }
-//        }else{
-//            return;
-//        }
     }
 
     void playSong(String manualUrl) {
@@ -426,6 +406,7 @@ public class AudioPlayer implements OnPreparedListener, OnErrorListener, MusicFo
         mRecorderStream.setRecordFile(recFile);
         mRecorderStream.setCodec(mCodec);
         mRecorderStream.setRecordUpdate(mRecordListener);
+        mRecorderStream.setOutputStreamProvider(mAudioStreamProvider);
         mRecorderStream.startRecording();
     }
 
@@ -438,4 +419,11 @@ public class AudioPlayer implements OnPreparedListener, OnErrorListener, MusicFo
         }
     }
 
+    public void setOutputStreamProvider(IOutputStreamProvider audioStreamProvider) {
+        mAudioStreamProvider = audioStreamProvider;
+    }
+
+    public void setInputStreamProvider(IInputStreamProvider inputStreamProvider){
+        mInputStreamProvider = inputStreamProvider;
+    }
 }

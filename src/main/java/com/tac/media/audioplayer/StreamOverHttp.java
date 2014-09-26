@@ -10,6 +10,7 @@ import android.webkit.MimeTypeMap;
 import com.tac.AccessInputStream;
 import com.tac.kulik.codec.KGSMCodec;
 import com.tac.kulik.codec.KGSMDecoder;
+import com.tac.media.audioplayer.interfaces.IInputStreamProvider;
 
 import org.apache.http.util.ByteArrayBuffer;
 
@@ -54,6 +55,8 @@ public class StreamOverHttp {
     private boolean isNeedDecode;
     private int mDuration; // calculate duration for file which will be encode
 
+    private IInputStreamProvider mInputStreamProvider;
+
 //    private InputStream stream;
     /**
      * Some HTTP response status codes
@@ -64,10 +67,11 @@ public class StreamOverHttp {
             HTTP_INTERNALERROR = "500 Internal Server Error";
 
     public StreamOverHttp(File f,
-                          String forceMimeType, String name) throws IOException{
+                          String forceMimeType, String name, IInputStreamProvider inputStreamProvider) throws IOException{
         file = f;
         fileSize = file.length();
         this.name = name;
+        mInputStreamProvider = inputStreamProvider;
         fileMimeType = AUDIO_DECODE_TYPE;//getMimeType(f);//forceMimeType;//!=null ? forceMimeType : getMimeType(file);//file.mimeType;
         serverSocket = new ServerSocket(0);
         mainThread = new Thread(new Runnable(){
@@ -121,7 +125,7 @@ public class StreamOverHttp {
 
     private class HttpSession implements Runnable{
         private boolean canSeek;
-        private AccessInputStream is;
+        private InputStream is;
         private final Socket socket;
 
         HttpSession(Socket s){
@@ -152,7 +156,7 @@ public class StreamOverHttp {
 
         private void openInputStream() throws IOException{
             // openRandomAccessInputStream must return RandomAccessInputStream if file is ssekable, null otherwise
-            is =  new AccessInputStream(file);//file.createInputStream();//a.getAssets().open(name);//stream;//file.createInputStream();//
+            is =  mInputStreamProvider.getFileInputStream(file);//new AccessInputStream(file);//file.createInputStream();//a.getAssets().open(name);//stream;//file.createInputStream();//
             if(is!=null) {
                 canSeek = true;
                 isNeedDecode = isNeedDecodeStream(is);
@@ -249,7 +253,7 @@ public class StreamOverHttp {
                         sendCount = 0;
 
                     status = "206 Partial Content";
-                    is.seek(startFrom);
+//                    is.seek(startFrom);
 
                     headers.put("Content-Length", "" + sendCount);
                     String rangeSpec = "bytes " + startFrom + "-" + endAt + "/" + fileSize;
