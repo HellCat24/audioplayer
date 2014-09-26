@@ -31,13 +31,13 @@ public class AudioRecordStream extends AudioRecord {
 
     private static final String TAG = AudioRecordStream.class.getSimpleName();
 
-    private static final int BUFFER_ELEMENTS_2_REC = 2048; // want to play 2048 (2K) since 2 bytes we use only 1024
+    private static final int BUFFER_ELEMENTS_2_REC = 4096;//2048; // want to play 2048 (2K) since 2 bytes we use only 1024
     private static final int BYTES_PER_ELEMENT = 2; // 2 bytes in 16bit format
 
     private static final int RECORDER_SAMPLERATE = 8000;
     private static final int RECORDER_CHANNELS = AudioFormat.CHANNEL_IN_MONO;
     private static final int RECORDER_AUDIO_ENCODING = AudioFormat.ENCODING_PCM_16BIT;
-
+    private static final float SHORT_INCREMENT = Short.MAX_VALUE / 2;
     private IRecordUpdate mRecordUpdate;
 
     private Thread mRecordingThread = null;
@@ -111,7 +111,8 @@ public class AudioRecordStream extends AudioRecord {
     public int read(byte[] audioData, int offsetInBytes, int sizeInBytes) {
         int result = super.read(audioData, offsetInBytes, sizeInBytes);
         if (mIsRecording && mRecordUpdate != null)
-            mRecordUpdate.byteRecord(getAverageValue(audioData));
+//            mRecordUpdate.byteRecord(
+                    getAverageValue(audioData);//);
         return result;
     }
 
@@ -156,6 +157,7 @@ public class AudioRecordStream extends AudioRecord {
 
                     long endTime = System.currentTimeMillis();
                     long diff = (endTime - mTmpTime);
+
                     if(diff > 1000){ // one second
                         //TODO wrong place to update timer more useful is create timer task with seconds, and start it on start and finish on stop recording
 //                        mRecordUpdate.updateTime(endTime - mStartTime);
@@ -232,11 +234,14 @@ public class AudioRecordStream extends AudioRecord {
         float value = 0f;
         for (int i = 0; i < data.length; i+=2) {
             short n1 = (short)((data[i] & 0xFF) | data[i+1]<<8);
-
-            value += n1;
+            value += Math.abs(n1);
+            if(i%512 == 0){
+                value = value / 256f;
+                mRecordUpdate.byteRecord(value/ SHORT_INCREMENT);
+                value = 0f;
+            }
         }
-        value = value / (data.length / 2);
-        return value / 16f;//255f; // 255 max value of byte
+        return value;
     }
 
     private float getAverageValue(ByteBuffer data) {

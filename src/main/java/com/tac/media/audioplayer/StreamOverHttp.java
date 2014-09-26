@@ -37,21 +37,23 @@ import java.util.StringTokenizer;
  */
 public class StreamOverHttp {
     private static final boolean debug = false;
-    private static final String TAG = "StreamOverHttp";
-
-    private final File file;
-//    private final AssetFileDescriptor file;
-    private String fileMimeType;
-    private long fileSize;
-
-    private final ServerSocket serverSocket;
-    private Thread mainThread;
-    private String name;
-
-    static KGSMDecoder mDecoder;
-    private boolean isNeedDecode;
     private static final byte[] NEED_DECODE_STREAM = new byte[]{0x52, 0x49, 0x46, 0x46};
     private static String AUDIO_DECODE_TYPE = "audio/x-wav";
+
+    private static final String TAG = "StreamOverHttp";
+    private final File file;
+    //    private final AssetFileDescriptor file;
+    private String fileMimeType;
+
+    private long fileSize;
+    private final ServerSocket serverSocket;
+    private Thread mainThread;
+
+    private String name;
+    static KGSMDecoder mDecoder;
+    private boolean isNeedDecode;
+    private int mDuration; // calculate duration for file which will be encode
+
 //    private InputStream stream;
     /**
      * Some HTTP response status codes
@@ -108,6 +110,15 @@ public class StreamOverHttp {
         }
         return type;
     }
+
+    public boolean isUseDuration() {
+        return isNeedDecode;
+    }
+
+    public int getDuration() {
+        return mDuration;
+    }
+
     private class HttpSession implements Runnable{
         private boolean canSeek;
         private AccessInputStream is;
@@ -149,6 +160,7 @@ public class StreamOverHttp {
                     mDecoder = new KGSMDecoder();
                     fileMimeType =  AUDIO_DECODE_TYPE;
                     fileSize = (( file.length() - 60 ) / 65) * (4 * mDecoder.BUFFER_LENGTH);
+                    mDuration = (int) (fileSize / 16);
                 }
             }
         }
@@ -333,14 +345,40 @@ public class StreamOverHttp {
 
         if (isNeedDecode) {
             byte[] tmpBuf = new byte[mDecoder.getReadBufferLength()];
-            char[] header = new char[]{0x52, 0x49, 0x46, 0x46,
-                    0x00, 0x01, 0x92,  0xC0,
-                    0x57, 0x41, 0x56, 0x45, 0x66, 0x6D, 0x74, 0x20, 0x10, 0x00, 0x00,
-                    0x00, 0x01, 0x00, 0x01, 0x00, 0x40, 0x1F, 0x00, 0x00, 0x80, 0x3E, 0x00,
-                    0x00, 0x02, 0x00, 0x10, 0x00, 0x64, 0x61, 0x74, 0x61,
-                    0x00, 0x01, 0x92, 0x80};
-            ByteArrayBuffer nn = new ByteArrayBuffer(header.length);
-            nn.append(header, 0, header.length);
+            byte[] size = intToByteArray((int) fileSize);
+            byte[] fullSize = intToByteArray((int) fileSize + 36);
+            char[] top = new char[]{0x52, 0x49, 0x46, 0x46};
+            char[] bottom = new char[]{0x57, 0x41, 0x56, 0x45, // "WAVE"
+                    0x66, 0x6D, 0x74, 0x20, // "fmt "
+                    0x10, 0x00, 0x00, 0x00, // Size of WAVE section chunck
+                    0x01, 0x00, // WAVE type format
+                    0x01, 0x00,//Number of channels
+                    0x40, 0x1F, 0x00, 0x00, // Samples per second
+                    0x80, 0x3E, 0x00, 0x00, //Bytes per second
+                    0x02, 0x00,//Block alignment
+                    0x10, 0x00, // Bits per sample
+                    0x64, 0x61, 0x74, 0x61 // data
+            };
+//            char[] header = new char[]{0x52, 0x49, 0x46, 0x46, //"RIFF"
+//                    0x00, 0xA4, 0xBA,  0x01, // Size of file
+//                    0x57, 0x41, 0x56, 0x45, // "WAVE"
+//                    0x66, 0x6D, 0x74, 0x20, // "fmt "
+//                    0x10, 0x00, 0x00, 0x00, // Size of WAVE section chunck
+//                    0x01, 0x00, // WAVE type format
+//                    0x01, 0x00,//Number of channels
+//                    0x40, 0x1F, 0x00, 0x00, // Samples per second
+//                    0x80, 0x3E, 0x00, 0x00, //Bytes per second
+//                    0x02, 0x00,//Block alignment
+//                    0x10, 0x00, // Bits per sample
+//                    0x64, 0x61, 0x74, 0x61, // data
+//                    0x00, 0x80, 0xBA, 0x01};
+//            ByteArrayBuffer nn = new ByteArrayBuffer(header.length);
+//            nn.append(header, 0, header.length);
+            ByteArrayBuffer nn = new ByteArrayBuffer(44);//header.length);
+            nn.append(top, 0, top.length);
+            nn.append(fullSize, 0, fullSize.length);
+            nn.append(bottom, 0, bottom.length);
+            nn.append(size, 0, size.length);
             out.write(nn.buffer(), 0, nn.buffer().length);
             int count = 0;
             while (count != -1){
@@ -366,6 +404,16 @@ public class StreamOverHttp {
                 maxSize -= count;
             }
         }
+    }
+
+    public static byte[] intToByteArray(int a)
+    {
+        byte[] ret = new byte[4];
+        ret[0] = (byte) (a & 0xFF);
+        ret[2] = (byte) ((a >> 8) & 0xFF);
+        ret[1] = (byte) ((a >> 16) & 0xFF);
+        ret[3] = (byte) ((a >> 24) & 0xFF);
+        return ret;
     }
     /**
      * Sends given response to the socket, and closes the socket.

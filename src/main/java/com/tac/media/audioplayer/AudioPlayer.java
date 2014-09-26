@@ -78,9 +78,10 @@ public class AudioPlayer implements OnPreparedListener, OnErrorListener, MusicFo
 
     private TimerTask mUpdateProgressTask = new TimerTask() {
         public void run() {
-            if (mPlayer != null) {
-                int duration = mPlayer.getDuration();
+            if (mPlayer != null && mProgressUpdate!=null) {
+                int duration = getDuration();
                 int currentPosition = mPlayer.getCurrentPosition();
+                Log.d("AudioPlayer", "Duration = " + duration + " current position = " + currentPosition);
                 mProgressUpdate.onProgressUpdate(HUNDRED_PERCENT * currentPosition / duration);
                 if(mTimeUpdater!=null) mTimeUpdater.updateTime(currentPosition);
                 mHandler.postDelayed(mUpdateProgressTask, UPDATE_PERIOD);
@@ -143,7 +144,7 @@ public class AudioPlayer implements OnPreparedListener, OnErrorListener, MusicFo
     private void configAndStartMediaPlayer() {
         Log.i(TAG, "debug: configAndStartMediaPlayer");
         if(mStateUpdater!=null) mStateUpdater.onStart();
-        if(mProgressUpdate!=null) startUpdates();
+        startUpdates();
         if (!mPlayer.isPlaying()) {
             mPlayer.start();
         }
@@ -362,7 +363,7 @@ public class AudioPlayer implements OnPreparedListener, OnErrorListener, MusicFo
 
     @Override
     public void seekTo(int progress) {
-        double progressInMillis = (progress/100.0)*mPlayer.getDuration();
+        double progressInMillis = (progress/100.0)*getDuration();//mPlayer.getDuration();
         mPlayer.seekTo((int) progressInMillis);
     }
 
@@ -391,7 +392,11 @@ public class AudioPlayer implements OnPreparedListener, OnErrorListener, MusicFo
     }
 
     public int getDuration(){
-        return mPlayer.getDuration();
+        int duration = mPlayer.getDuration();
+        if(mStreamServer.isUseDuration()){
+            duration = mStreamServer.getDuration();
+        }
+        return duration;
     }
 
     @Override
@@ -409,6 +414,7 @@ public class AudioPlayer implements OnPreparedListener, OnErrorListener, MusicFo
 
     public void setRecordUpdate(IRecordUpdate record){
         mRecordListener = record;
+        if(mRecorderStream != null) mRecorderStream.setRecordUpdate(mRecordListener);
     }
 
     public void startRecording(File recFile) {

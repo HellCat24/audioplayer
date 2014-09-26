@@ -10,7 +10,7 @@ import java.nio.ByteBuffer;
 public class KGSMCodec implements IKCodec {
 
     public static final int BUFFER_LENGTH = 160;
-    public static final int FRAMES_COUNT = 8;
+    public static final int FRAMES_COUNT = 4;
     private final ByteBuffer mOut;
 
     public KGSMCodec() {
