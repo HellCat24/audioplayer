@@ -11,9 +11,13 @@ public class KGSMCodec implements IKCodec {
 
     public static final int BUFFER_LENGTH = 160;
     public static final int FRAMES_COUNT = 4;
-    private final ByteBuffer mOut;
+    private ByteBuffer mOut;
 
     public KGSMCodec() {
+    }
+
+    @Override
+    public void init() {
         System.loadLibrary("gsm");
         mOut = ByteBuffer.allocateDirect((32 + 33) * FRAMES_COUNT);
         initGSM();

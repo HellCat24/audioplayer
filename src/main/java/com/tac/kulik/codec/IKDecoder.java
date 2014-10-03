@@ -7,4 +7,6 @@ public interface IKDecoder {
     int getReadBufferLength();
 
     byte[] decode(byte[] data);
+
+    void init();
 }

@@ -12,7 +12,7 @@ android {
         versionName "1.0"
 
         ndk {
-            abiFilter "armeabi"
+//            abiFilter "armeabi"
 //            armeabi-v7a
             moduleName "libgsm"
             cFlags "-I${project.buildDir}/../src/main/jni/inc"

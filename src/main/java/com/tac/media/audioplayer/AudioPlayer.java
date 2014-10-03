@@ -29,7 +29,6 @@ import com.tac.media.audioplayer.interfaces.StateNotifier;
 import com.tac.media.audioplayer.interfaces.TimeUpdater;
 
 import java.io.File;
-import java.io.FileDescriptor;
 import java.io.IOException;
 import java.util.TimerTask;
 
@@ -42,7 +41,7 @@ public class AudioPlayer implements OnPreparedListener, OnErrorListener, MusicFo
 
     public static final float DUCK_VOLUME = 0.1f;
 
-    public static int UPDATE_PERIOD = 1000;
+    public static final int UPDATE_PERIOD = 1000;
 
     private MediaPlayer mPlayer = null;
 
@@ -84,12 +83,12 @@ public class AudioPlayer implements OnPreparedListener, OnErrorListener, MusicFo
 
     private TimerTask mUpdateProgressTask = new TimerTask() {
         public void run() {
-            if (mPlayer != null && mProgressUpdate!=null) {
+            if (mPlayer != null && mProgressUpdate != null) {
                 int duration = getDuration();
                 int currentPosition = mPlayer.getCurrentPosition();
                 Log.d("AudioPlayer", "Duration = " + duration + " current position = " + currentPosition);
                 mProgressUpdate.onProgressUpdate(HUNDRED_PERCENT * currentPosition / duration);
-                if(mTimeUpdater!=null) mTimeUpdater.updateTime(currentPosition);
+                if (mTimeUpdater != null) mTimeUpdater.updateTime(currentPosition);
                 mHandler.postDelayed(mUpdateProgressTask, UPDATE_PERIOD);
             }
         }
@@ -107,7 +106,7 @@ public class AudioPlayer implements OnPreparedListener, OnErrorListener, MusicFo
         initRemoteControlClient();
     }
 
-    private void initRemoteControlClient(){
+    private void initRemoteControlClient() {
         if (mRemoteControlClient == null) {
             Intent intent = new Intent(Intent.ACTION_MEDIA_BUTTON);
             intent.setComponent(mMediaButtonReceiverComponent);
@@ -149,7 +148,7 @@ public class AudioPlayer implements OnPreparedListener, OnErrorListener, MusicFo
 
     private void configAndStartMediaPlayer() {
         Log.i(TAG, "debug: configAndStartMediaPlayer");
-        if(mStateUpdater!=null) mStateUpdater.onStart();
+        if (mStateUpdater != null) mStateUpdater.onStart();
         startUpdates();
         if (!mPlayer.isPlaying()) {
             mPlayer.start();
@@ -159,7 +158,7 @@ public class AudioPlayer implements OnPreparedListener, OnErrorListener, MusicFo
 
     private void processPauseRequest() {
         Log.i(TAG, "debug: processPauseRequest");
-        if(mStateUpdater!=null) mStateUpdater.onPause();
+        if (mStateUpdater != null) mStateUpdater.onPause();
         if (mCurrentState == State.Playing) {
             mCurrentState = State.Paused;
             mPlayer.pause();
@@ -169,7 +168,7 @@ public class AudioPlayer implements OnPreparedListener, OnErrorListener, MusicFo
     }
 
     private void processStopRequest(boolean force) {
-        if(mStateUpdater!=null) mStateUpdater.onStop();
+        if (mStateUpdater != null) mStateUpdater.onStop();
         if (mCurrentState == State.Playing || mCurrentState == State.Paused || force) {
             mCurrentState = State.Stopped;
             relaxResources(true);
@@ -208,7 +207,7 @@ public class AudioPlayer implements OnPreparedListener, OnErrorListener, MusicFo
             mAudioFocus = AudioFocus.Focused;
     }
 
-    public void playAsStream(File f){
+    public void playAsStream(File f) {
         mCurrentState = State.Stopped;
         relaxResources(false); // release everything except MediaPlayer
         try {
@@ -253,6 +252,7 @@ public class AudioPlayer implements OnPreparedListener, OnErrorListener, MusicFo
             ex.printStackTrace();
         }
     }
+
     public void onPrepared(MediaPlayer player) {
         Log.i(TAG, "debug: onPrepared");
         mCurrentState = State.Playing;
@@ -330,7 +330,7 @@ public class AudioPlayer implements OnPreparedListener, OnErrorListener, MusicFo
     }
 
     private void stopServer() {
-        if(mStreamServer != null){
+        if (mStreamServer != null) {
             mStreamServer.close();
             mStreamServer = null;
         }
@@ -343,12 +343,8 @@ public class AudioPlayer implements OnPreparedListener, OnErrorListener, MusicFo
 
     @Override
     public void seekTo(int progress) {
-        double progressInMillis = (progress/100.0)*getDuration();//mPlayer.getDuration();
+        double progressInMillis = (progress / 100.0) * getDuration();//mPlayer.getDuration();
         mPlayer.seekTo((int) progressInMillis);
-    }
-
-    public void setUpdatePeriod(int value) {
-        UPDATE_PERIOD = value;
     }
 
     public void startUpdates() {
@@ -371,9 +367,9 @@ public class AudioPlayer implements OnPreparedListener, OnErrorListener, MusicFo
         mProgressUpdate = progressUpdate;
     }
 
-    public int getDuration(){
+    public int getDuration() {
         int duration = mPlayer.getDuration();
-        if(mStreamServer.isUseDuration()){
+        if (mStreamServer.isUseDuration()) {
             duration = mStreamServer.getDuration();
         }
         return duration;
@@ -382,7 +378,7 @@ public class AudioPlayer implements OnPreparedListener, OnErrorListener, MusicFo
     @Override
     public void onCompletion(MediaPlayer mp) {
         mHandler.removeCallbacks(mUpdateProgressTask);
-        if(mStateUpdater!=null) mStateUpdater.onStop();
+        if (mStateUpdater != null) mStateUpdater.onStop();
     }
 
     public void onDestroy() {
@@ -392,27 +388,33 @@ public class AudioPlayer implements OnPreparedListener, OnErrorListener, MusicFo
         giveUpAudioFocus();
     }
 
-    public void setRecordUpdate(IRecordUpdate record){
+    public void setRecordUpdate(IRecordUpdate record) {
         mRecordListener = record;
-        if(mRecorderStream != null) mRecorderStream.setRecordUpdate(mRecordListener);
+        if (mRecorderStream != null) mRecorderStream.setRecordUpdate(mRecordListener);
     }
 
-    public void startRecording(File recFile) {
+    public void startRecording(final File recFile) {
 //        if (mWriterFile == null) {
 //            throw new IllegalStateException("No file for record are found.");
 //        }
-        KGSMCodec mCodec = new KGSMCodec();
-        mRecorderStream = new AudioRecordStream();
-        mRecorderStream.setRecordFile(recFile);
-        mRecorderStream.setCodec(mCodec);
-        mRecorderStream.setRecordUpdate(mRecordListener);
-        mRecorderStream.setOutputStreamProvider(mAudioStreamProvider);
-        mRecorderStream.startRecording();
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                KGSMCodec mCodec = new KGSMCodec();
+                mRecorderStream = new AudioRecordStream();
+                mRecorderStream.setRecordFile(recFile);
+                mRecorderStream.setCodec(mCodec);
+                mRecorderStream.setRecordUpdate(mRecordListener);
+                mRecorderStream.setOutputStreamProvider(mAudioStreamProvider);
+                mRecorderStream.startRecording();
+            }
+        }).start();
+
     }
 
     public void stopRecording() {
         // stops the recording activity
-        if (null != mRecorderStream) {
+        if (mRecorderStream != null) {
             mRecorderStream.stop();
             mRecorderStream.release();
             mRecorderStream = null;
@@ -423,7 +425,8 @@ public class AudioPlayer implements OnPreparedListener, OnErrorListener, MusicFo
         mAudioStreamProvider = audioStreamProvider;
     }
 
-    public void setInputStreamProvider(IInputStreamProvider inputStreamProvider){
+    public void setInputStreamProvider(IInputStreamProvider inputStreamProvider) {
         mInputStreamProvider = inputStreamProvider;
     }
+
 }

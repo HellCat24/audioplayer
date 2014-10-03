@@ -3,7 +3,6 @@ package com.tac.media.audioplayer;
 import android.media.AudioFormat;
 import android.media.AudioRecord;
 import android.media.MediaRecorder;
-import android.os.Handler;
 import android.util.Log;
 
 import com.tac.media.audioplayer.interfaces.IOutputStreamProvider;
@@ -13,12 +12,10 @@ import org.apache.http.util.ByteArrayBuffer;
 
 import java.io.File;
 import java.io.FileNotFoundException;
-import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
-import java.io.RandomAccessFile;
 import java.nio.ByteBuffer;
-import java.util.Date;
+import java.util.Timer;
 import java.util.TimerTask;
 
 /**
@@ -50,20 +47,11 @@ public class AudioRecordStream extends AudioRecord {
 //    = new short[BUFFER_ELEMENTS_2_REC];
     private IKCodec mCodec;
     private File mRecordFile;
-    private long mStartTime = 0;
-    private long mTmpTime = 0;
 
-    private Handler mHandler;
+    private Timer mTimer;
     private IOutputStreamProvider mOutputSteamProvider;
 
-    private TimerTask mUpdateProgressTask = new TimerTask() {
-        public void run() {
-            long endTime = System.currentTimeMillis();
-            long millisecond = endTime - mStartTime;
-            mRecordUpdate.updateTime(millisecond);
-            mHandler.postDelayed(mUpdateProgressTask, AudioPlayer.UPDATE_PERIOD);
-        }
-    };
+
     /**
      * Class constructor.
      *
@@ -88,14 +76,14 @@ public class AudioRecordStream extends AudioRecord {
      */
     public AudioRecordStream(int audioSource, int sampleRateInHz, int channelConfig, int audioFormat, int bufferSizeInBytes) throws IllegalArgumentException {
         super(audioSource, sampleRateInHz, channelConfig, audioFormat, bufferSizeInBytes);
-        mHandler = new Handler();
+        mTimer = new Timer();
     }
 
     public AudioRecordStream() {
         super(MediaRecorder.AudioSource.MIC,
                 RECORDER_SAMPLERATE, RECORDER_CHANNELS,
                 AudioFormat.ENCODING_PCM_16BIT, BUFFER_ELEMENTS_2_REC * BYTES_PER_ELEMENT);
-        mHandler = new Handler();
+        mTimer = new Timer();
     }
 
     public void setRecordUpdate(IRecordUpdate record) {
@@ -111,9 +99,7 @@ public class AudioRecordStream extends AudioRecord {
                 writeAudioDataToFile();
             }
         }, "AudioRecorder Thread");
-        mStartTime = System.currentTimeMillis();
-        mTmpTime = mStartTime;
-        mHandler.postDelayed(mUpdateProgressTask, AudioPlayer.UPDATE_PERIOD);
+        mTimer.schedule(new UpdateTask(), AudioPlayer.UPDATE_PERIOD);
         mRecordingThread.start();
 
     }
@@ -131,7 +117,7 @@ public class AudioRecordStream extends AudioRecord {
         int result = super.read(audioData, offsetInBytes, sizeInBytes);
         if (mIsRecording && mRecordUpdate != null)
 //            mRecordUpdate.byteRecord(
-                    getAverageValue(audioData);//);
+            getAverageValue(audioData);//);
         return result;
     }
 
@@ -147,7 +133,7 @@ public class AudioRecordStream extends AudioRecord {
     @Override
     public void stop() throws IllegalStateException {
         mIsRecording = false;
-        mHandler.removeCallbacks(mUpdateProgressTask);
+        mTimer.cancel();
         super.stop();
     }
 
@@ -159,8 +145,9 @@ public class AudioRecordStream extends AudioRecord {
 
     private void writeAudioDataToFile() {
         int dataCounter = 0;
-        byte[] data ;
+        byte[] data;
         if (mCodec != null) {
+            mCodec.init();
             OutputStream fileOutputStream = null;
             try {
                 fileOutputStream = mOutputSteamProvider.getFileOutputStream(mRecordFile);//new FileOutputStream(mRecordFile);
@@ -169,19 +156,19 @@ public class AudioRecordStream extends AudioRecord {
                     data = new byte[mCodec.getReadBufferLength()];
                     int length = read(data, 0, data.length);
                     if (length < 0) {
-                       break;
+                        break;
                     }
                     byte[] encoded = mCodec.encode(data);
                     dataCounter += encoded.length;
                     fileOutputStream.write(encoded);
-                 }
+                }
             } catch (FileNotFoundException e) {
                 Log.e(TAG, "No file Found", e);
             } catch (IOException e) {
                 Log.e(TAG, "IO problem", e);
             } finally {
                 try {
-                    if(fileOutputStream != null) fileOutputStream.close();
+                    if (fileOutputStream != null) fileOutputStream.close();
                 } catch (IOException e) {
                     Log.e(TAG, "IO problem", e);
                 }
@@ -241,12 +228,12 @@ public class AudioRecordStream extends AudioRecord {
 
     private float getAverageValue(byte[] data) {
         float value = 0f;
-        for (int i = 0; i < data.length; i+=2) {
-            short n1 = (short)((data[i] & 0xFF) | data[i+1]<<8);
+        for (int i = 0; i < data.length; i += 2) {
+            short n1 = (short) ((data[i] & 0xFF) | data[i + 1] << 8);
             value += Math.abs(n1);
-            if(i%512 == 0){
+            if (i % 512 == 0) {
                 value = value / 256f;
-                mRecordUpdate.byteRecord(value/ SHORT_INCREMENT);
+                mRecordUpdate.byteRecord(value / SHORT_INCREMENT);
                 value = 0f;
             }
         }
@@ -275,5 +262,20 @@ public class AudioRecordStream extends AudioRecord {
 
     public void setOutputStreamProvider(IOutputStreamProvider outputStreamProvider) {
         mOutputSteamProvider = outputStreamProvider;
+    }
+
+    private class UpdateTask extends TimerTask {
+
+        private final long mStartTime;
+
+        private UpdateTask() {
+            mStartTime = System.currentTimeMillis();
+        }
+
+        public void run() {
+            long endTime = System.currentTimeMillis();
+            long millisecond = endTime - mStartTime;
+            mRecordUpdate.updateTime(millisecond);
+        }
     }
 }

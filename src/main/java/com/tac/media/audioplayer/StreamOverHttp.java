@@ -51,7 +51,7 @@ public class StreamOverHttp {
     private Thread mainThread;
 
     private String name;
-    static KGSMDecoder mDecoder;
+    private KGSMDecoder mDecoder;
     private boolean isNeedDecode;
     private int mDuration; // calculate duration for file which will be encode
 
@@ -162,6 +162,7 @@ public class StreamOverHttp {
                 isNeedDecode = isNeedDecodeStream(is);
                 if(isNeedDecode){
                     mDecoder = new KGSMDecoder();
+                    mDecoder.init();
                     fileMimeType =  AUDIO_DECODE_TYPE;
                     fileSize = (( file.length() - 60 ) / 65) * (4 * mDecoder.BUFFER_LENGTH);
                     mDuration = (int) (fileSize / 16);

@@ -11,12 +11,9 @@ public class KGSMDecoder implements IKDecoder {
 
     public static final int BUFFER_LENGTH = 160;
     public static final int FRAMES_COUNT = 1;
-    private final ByteBuffer mOut;
+    private ByteBuffer mOut;
 
     public KGSMDecoder() {
-        System.loadLibrary("gsm");
-        mOut = ByteBuffer.allocateDirect(BUFFER_LENGTH * FRAMES_COUNT * 2 * 2);
-        initGSM();
     }
 
     @Override
@@ -29,6 +26,13 @@ public class KGSMDecoder implements IKDecoder {
         decode(data, mOut, FRAMES_COUNT);
         return mOut.array();
 //        return data;
+    }
+
+    @Override
+    public void init() {
+        System.loadLibrary("gsm");
+        mOut = ByteBuffer.allocateDirect(BUFFER_LENGTH * FRAMES_COUNT * 2 * 2);
+        initGSM();
     }
 
     private native void decode(byte[] in, ByteBuffer out, int framesCount);

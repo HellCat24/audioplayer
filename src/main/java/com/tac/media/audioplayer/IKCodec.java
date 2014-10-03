@@ -8,5 +8,7 @@ public interface IKCodec {
     public int getReadBufferLength();
 
     byte[] encode(byte[] data);
+
+    void init();
 }
 
