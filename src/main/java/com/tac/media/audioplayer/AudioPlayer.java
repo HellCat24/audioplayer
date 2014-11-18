@@ -377,7 +377,7 @@ public class AudioPlayer implements OnPreparedListener, OnErrorListener, MusicFo
 
     @Override
     public void onCompletion(MediaPlayer mp) {
-        mHandler.removeCallbacks(mUpdateProgressTask);
+        pause();
         if (mStateUpdater != null) mStateUpdater.onStop();
     }
 

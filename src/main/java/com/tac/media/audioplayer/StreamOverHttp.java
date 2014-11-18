@@ -226,7 +226,7 @@ public class StreamOverHttp {
                             startFrom = Long.parseLong(startR);
                             String endR = range.substring(minus + 1);
                             endAt = Long.parseLong(endR);
-                        } catch (NumberFormatException nfe) {
+                        }catch(NumberFormatException nfe){
                             Log.e("SteamOvverHttp problem", nfe.getMessage(), nfe);
                         }
                     }

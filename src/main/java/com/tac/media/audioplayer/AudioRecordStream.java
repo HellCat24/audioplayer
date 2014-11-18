@@ -3,6 +3,8 @@ package com.tac.media.audioplayer;
 import android.media.AudioFormat;
 import android.media.AudioRecord;
 import android.media.MediaRecorder;
+import android.os.Handler;
+import android.os.Looper;
 import android.util.Log;
 
 import com.tac.media.audioplayer.interfaces.IOutputStreamProvider;
@@ -50,6 +52,7 @@ public class AudioRecordStream extends AudioRecord {
 
     private Timer mTimer;
     private IOutputStreamProvider mOutputSteamProvider;
+    private Handler mUpdateUIHandler;
 
 
     /**
@@ -76,14 +79,19 @@ public class AudioRecordStream extends AudioRecord {
      */
     public AudioRecordStream(int audioSource, int sampleRateInHz, int channelConfig, int audioFormat, int bufferSizeInBytes) throws IllegalArgumentException {
         super(audioSource, sampleRateInHz, channelConfig, audioFormat, bufferSizeInBytes);
-        mTimer = new Timer();
+        init();
     }
 
     public AudioRecordStream() {
         super(MediaRecorder.AudioSource.MIC,
                 RECORDER_SAMPLERATE, RECORDER_CHANNELS,
                 AudioFormat.ENCODING_PCM_16BIT, BUFFER_ELEMENTS_2_REC * BYTES_PER_ELEMENT);
+        init();
+    }
+
+    private void init() {
         mTimer = new Timer();
+        mUpdateUIHandler = new Handler(Looper.getMainLooper());
     }
 
     public void setRecordUpdate(IRecordUpdate record) {
@@ -99,7 +107,13 @@ public class AudioRecordStream extends AudioRecord {
                 writeAudioDataToFile();
             }
         }, "AudioRecorder Thread");
-        mTimer.schedule(new UpdateTask(), AudioPlayer.UPDATE_PERIOD);
+        final Runnable timerTask = new UpdateTask();
+        mTimer.schedule(new TimerTask() {
+            @Override
+            public void run() {
+                mUpdateUIHandler.post(timerTask);
+            }
+        }, AudioPlayer.UPDATE_PERIOD, AudioPlayer.UPDATE_PERIOD);
         mRecordingThread.start();
 
     }
@@ -107,26 +121,28 @@ public class AudioRecordStream extends AudioRecord {
     @Override
     public int read(ByteBuffer audioBuffer, int sizeInBytes) {
         int result = super.read(audioBuffer, sizeInBytes);
-        if (mIsRecording && mRecordUpdate != null)
+        if (mIsRecording && mRecordUpdate != null) {
             mRecordUpdate.byteRecord(getAverageValue(audioBuffer));
+        }
         return result;
     }
 
     @Override
     public int read(byte[] audioData, int offsetInBytes, int sizeInBytes) {
         int result = super.read(audioData, offsetInBytes, sizeInBytes);
-        if (mIsRecording && mRecordUpdate != null)
+        if (mIsRecording && mRecordUpdate != null) {
 //            mRecordUpdate.byteRecord(
             getAverageValue(audioData);//);
+        }
         return result;
     }
 
     @Override
     public int read(short[] audioData, int offsetInShorts, int sizeInShorts) {
         int result = super.read(audioData, offsetInShorts, sizeInShorts);
-        if (mIsRecording && mRecordUpdate != null)
+        if (mIsRecording && mRecordUpdate != null) {
             mRecordUpdate.byteRecord(getAverageValue(audioData));
-
+        }
         return result;
     }
 
@@ -264,7 +280,7 @@ public class AudioRecordStream extends AudioRecord {
         mOutputSteamProvider = outputStreamProvider;
     }
 
-    private class UpdateTask extends TimerTask {
+    private class UpdateTask implements Runnable {
 
         private final long mStartTime;
 
@@ -275,7 +291,9 @@ public class AudioRecordStream extends AudioRecord {
         public void run() {
             long endTime = System.currentTimeMillis();
             long millisecond = endTime - mStartTime;
-            mRecordUpdate.updateTime(millisecond);
+            if (mIsRecording && mRecordUpdate != null) {
+                mRecordUpdate.updateTime(millisecond);
+            }
         }
     }
 }
