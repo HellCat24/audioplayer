@@ -4,18 +4,13 @@ import android.net.Uri;
 import android.util.Log;
 import android.webkit.MimeTypeMap;
 
-import com.tac.kulik.codec.IKDecoder;
-import com.tac.kulik.codec.KGSMCodec;
 import com.tac.kulik.codec.KGSMDecoder;
 import com.tac.media.audioplayer.interfaces.IInputStreamProvider;
 import com.tac.media.audioplayer.interfaces.IRandomAccessFile;
 
-import org.apache.http.util.ByteArrayBuffer;
-
 import java.io.BufferedReader;
 import java.io.ByteArrayInputStream;
 import java.io.File;
-import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -23,6 +18,7 @@ import java.io.OutputStream;
 import java.io.PrintWriter;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.net.URLConnection;
 import java.net.URLEncoder;
 import java.util.Enumeration;
 import java.util.Properties;
@@ -45,9 +41,7 @@ public class StreamOverHttp {
     private final ServerSocket mServerSocket;
     private Thread mainThread;
 
-    private String mName;
-    private KGSMDecoder mDecoder;
-    private boolean isNeedDecode;
+    private boolean mIsNeedDecode;
     private int mDuration; // calculate duration for file which will be encode
 
     private IInputStreamProvider mInputStreamProvider;
@@ -65,9 +59,8 @@ public class StreamOverHttp {
                           String forceMimeType, String name, IInputStreamProvider inputStreamProvider) throws IOException {
         file = f;
         mFileSize = file.length();
-        mName = name;
         mInputStreamProvider = inputStreamProvider;
-        mFileMimeType = AUDIO_DECODE_TYPE;//getMimeType(f);//forceMimeType;//!=null ? forceMimeType : getMimeType(file);//file.mimeType;
+        mFileMimeType = AUDIO_DECODE_TYPE;
         mServerSocket = new ServerSocket(0);
         mainThread = new Thread(new Runnable() {
             @Override
@@ -88,18 +81,8 @@ public class StreamOverHttp {
         mainThread.start();
     }
 
-    public String getMimeType(File file) {
-        String type = null;
-        String extension = MimeTypeMap.getFileExtensionFromUrl(file.getAbsolutePath());
-        if (extension != null) {
-            MimeTypeMap mime = MimeTypeMap.getSingleton();
-            type = mime.getMimeTypeFromExtension(extension);
-        }
-        return type;
-    }
-
     public boolean isUseDuration() {
-        return isNeedDecode;
+        return mIsNeedDecode;
     }
 
     public int getDuration() {
@@ -109,7 +92,7 @@ public class StreamOverHttp {
     private class HttpSession implements Runnable {
         private boolean canSeek;
         private InputStream mIs;
-        private IRandomAccessInputStream mSeekSteram;
+        private IRandomAccessInputStream mSeekStream;
         private final Socket mSocket;
 
         HttpSession(Socket s) {
@@ -138,20 +121,26 @@ public class StreamOverHttp {
         }
 
         private void openInputStream() throws IOException {
-            // openRandomAccessInputStream must return RandomAccessInputStream if file mIs ssekable, null otherwise
-            FileInputStream mIs = (FileInputStream) mInputStreamProvider.getFileInputStream(file);//new AccessInputStream(file);//file.createInputStream();//a.getAssets().open(name);//stream;//file.createInputStream();//
+            mIs = mInputStreamProvider.getFileInputStream(file);
             if (mIs != null) {
                 canSeek = true;
-                isNeedDecode = isNeedDecodeStream(mIs);
-                if (isNeedDecode) {
-//                    mDecoder = new KGSMDecoder();
-//                    mDecoder.init();
-                    mFileMimeType = AUDIO_DECODE_TYPE;
+                mIsNeedDecode = isNeedDecodeStream(mIs);
+                //Reopen stream.
+                try {
                     mIs.close();
                     mIs = null;
+                } catch (IOException e) {
+                }
+                if (!mIsNeedDecode) {
+                    //Some troubles are here with mp3
+                    mIs = mInputStreamProvider.getFileInputStream(file);
+                    mFileSize = file.length();
+                    mFileMimeType = "audio/mpeg";
+                } else {
+                    mFileMimeType = AUDIO_DECODE_TYPE;
                     IRandomAccessFile seekFile = mInputStreamProvider.getRandomAccessFile(file);
-                    mSeekSteram = new GSMRandomAccessStream(seekFile);
-                    mFileSize = ((file.length() - 60) / 65) * (KGSMDecoder.getBytesPerDecodedFrame());
+                    mSeekStream = new GSMRandomAccessStream(seekFile);
+                    mFileSize = mSeekStream.length();
                     mDuration = (int) (mFileSize / 16);
                 }
             }
@@ -161,17 +150,10 @@ public class StreamOverHttp {
             boolean result = false;
             byte[] bytes = new byte[21];
             try {
-                is.mark(0);
                 is.read(bytes, 0, 21);
                 result = (bytes[0] == NEED_DECODE_STREAM[0]) && (bytes[1] == NEED_DECODE_STREAM[1])
                         && (bytes[2] == NEED_DECODE_STREAM[2]) && (bytes[3] == NEED_DECODE_STREAM[3])// 4 bytes for RIFF
                         && (bytes[20] == 0x31); // it gsm rather then wav
-                if (result) {
-                    is.skip(39);
-                } else {
-                    is.reset();
-                }
-//                mIs =  new FileInputStream(file);
             } catch (IOException e) {
                 Log.e(TAG, e.toString(), e);
             }
@@ -226,7 +208,7 @@ public class StreamOverHttp {
                             startFrom = Long.parseLong(startR);
                             String endR = range.substring(minus + 1);
                             endAt = Long.parseLong(endR);
-                        }catch(NumberFormatException nfe){
+                        } catch (NumberFormatException nfe) {
                             Log.e("SteamOvverHttp problem", nfe.getMessage(), nfe);
                         }
                     }
@@ -244,15 +226,15 @@ public class StreamOverHttp {
 
                     status = "206 Partial Content";
                     //GSM stream is seekable
-                    if (isNeedDecode) {
-                        mSeekSteram.seek(startFrom);
+                    if (mIsNeedDecode) {
+                        mSeekStream.seek(startFrom);
                     }
                     headers.put("Content-Length", "" + sendCount);
                     String rangeSpec = "bytes " + startFrom + "-" + endAt + "/" + mFileSize;
                     headers.put("Content-Range", rangeSpec);
                 }
-                if (isNeedDecode) {
-                    sendResponse(socket, status, mFileMimeType, headers, mSeekSteram, sendCount, null);
+                if (mIsNeedDecode) {
+                    sendResponse(socket, status, mFileMimeType, headers, mSeekStream, sendCount, null);
                 } else {
                     sendResponse(socket, status, mFileMimeType, headers, mIs, sendCount, null);
                 }
@@ -344,14 +326,15 @@ public class StreamOverHttp {
     byte[] tmpBuf = new byte[8192];
 
     private void copyStream(InputStream in, OutputStream out, int sendCount) throws IOException {
-        while (sendCount > 0) {
-            int count = Math.min(sendCount, tmpBuf.length);
-            count = in.read(tmpBuf, 0, count);
-
-            if (count < 0)
-                break;
-            out.write(tmpBuf, 0, count);
-            sendCount -= count;
+        if (mIsNeedDecode) {
+            while (sendCount > 0) {
+                int count = Math.min(sendCount, tmpBuf.length);
+                count = in.read(tmpBuf, 0, count);
+                if (count < 0)
+                    break;
+                out.write(tmpBuf, 0, count);
+                sendCount -= count;
+            }
         }
     }
 

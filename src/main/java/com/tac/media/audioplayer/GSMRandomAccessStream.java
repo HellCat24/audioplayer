@@ -18,7 +18,7 @@ class GSMRandomAccessStream extends IRandomAccessInputStream {
     public static final int GSM_HEADER_LENGTH = 60;
     public static final int BYTES_PER_DECODED_FRAME = KGSMDecoder.getBytesPerDecodedFrame();
     private IRandomAccessFile mFile;
-    private long mFileSize;
+    private long mRawDataSize;
     private IKDecoder mDecoder;
     private long mGSMOffset;
     private long mOffset;
@@ -30,7 +30,7 @@ class GSMRandomAccessStream extends IRandomAccessInputStream {
         mDecoder = new KGSMDecoder();
         mDecoder.init();
         try {
-            mFileSize = ((file.length() - GSM_HEADER_LENGTH) / 65) * (BYTES_PER_DECODED_FRAME);
+            mRawDataSize = ((file.length() - GSM_HEADER_LENGTH) / 65) * (BYTES_PER_DECODED_FRAME);
         } catch (IOException e) {
             Log.e(TAG, "", e);
         }
@@ -39,7 +39,7 @@ class GSMRandomAccessStream extends IRandomAccessInputStream {
 
     @Override
     long length() {
-        return mFileSize + RAW_HEADER_SIZE;
+        return mRawDataSize + RAW_HEADER_SIZE;
     }
 
     @Override
@@ -95,8 +95,8 @@ class GSMRandomAccessStream extends IRandomAccessInputStream {
 
     private byte[] getHeader() {
 //        byte[] tmpBuf = new byte[mDecoder.getReadBufferLength()];
-        byte[] size = intToByteArray((int) mFileSize);
-        byte[] fullSize = intToByteArray((int) mFileSize + 36);
+        byte[] size = intToByteArray((int) mRawDataSize);
+        byte[] fullSize = intToByteArray((int) mRawDataSize + 36);
         char[] top = new char[]{0x52, 0x49, 0x46, 0x46};
         char[] bottom = new char[]{0x57, 0x41, 0x56, 0x45, // "WAVE"
                 0x66, 0x6D, 0x74, 0x20, // "fmt "

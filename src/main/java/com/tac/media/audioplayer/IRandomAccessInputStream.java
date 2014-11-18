@@ -19,10 +19,4 @@ abstract class IRandomAccessInputStream extends InputStream {
      */
     abstract void seek(long offset) throws IOException;
 
-    @Override
-    public int read() throws IOException {
-        byte[] b = new byte[1];
-        read(b);
-        return b[0] & 0xff;
-    }
 }
