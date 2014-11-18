@@ -25,7 +25,6 @@ class GSMRandomAccessStream extends IRandomAccessInputStream {
     private byte[] mTmpBuf;
 
     public GSMRandomAccessStream(IRandomAccessFile file) {
-        Log.d(TAG, "CREATE");
         mFile = file;
         mDecoder = new KGSMDecoder();
         mDecoder.init();
@@ -49,7 +48,6 @@ class GSMRandomAccessStream extends IRandomAccessInputStream {
 
     @Override
     public int read(byte[] buffer, int byteOffset, int byteCount) throws IOException {
-        Log.d(TAG, "READ");
         int readed = 0;
         if (mOffset < RAW_HEADER_SIZE) {
             long length = Math.min(byteCount, RAW_HEADER_SIZE - mOffset);
@@ -67,6 +65,7 @@ class GSMRandomAccessStream extends IRandomAccessInputStream {
             while (byteCount - readed >= BYTES_PER_DECODED_FRAME) {
 
                 count = mFile.read(mTmpBuf, 0, mTmpBuf.length);
+//                Log.d(TAG, "count: " + count + " byteCount: " + byteCount + " readed: " + readed);
                 if (count < 0) {
                     break;
                 }
@@ -83,9 +82,7 @@ class GSMRandomAccessStream extends IRandomAccessInputStream {
 
     @Override
     void seek(long offset) throws IOException {
-        Log.d(TAG, "TryTo seek");
         if (mOffset >= RAW_HEADER_SIZE) {
-            Log.d(TAG, "Seecked");
             long seekInRAW = offset - RAW_HEADER_SIZE;
             long calcGSMPackets = seekInRAW / KGSMDecoder.RAW_FRAME_SIZE;
             mGSMOffset = GSM_HEADER_LENGTH + calcGSMPackets * KGSMCodec.FRAME_LENGTH;

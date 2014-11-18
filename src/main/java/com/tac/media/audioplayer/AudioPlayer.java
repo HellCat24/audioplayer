@@ -213,7 +213,6 @@ public class AudioPlayer implements OnPreparedListener, OnErrorListener, MusicFo
         try {
             mStreamServer = new StreamOverHttp(f, null, f.getName(), mInputStreamProvider);
             Uri uri = mStreamServer.getUri(f.getName());
-
             mPlayer = MediaPlayer.create(mContext, uri);
             //TODO mPlayer can be null
             if (mPlayer != null) {
