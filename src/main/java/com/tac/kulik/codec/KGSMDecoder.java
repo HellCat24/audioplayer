@@ -1,7 +1,5 @@
 package com.tac.kulik.codec;
 
-import com.tac.media.audioplayer.IKCodec;
-
 import java.nio.ByteBuffer;
 
 /**
@@ -9,8 +7,11 @@ import java.nio.ByteBuffer;
  */
 public class KGSMDecoder implements IKDecoder {
 
-    public static final int BUFFER_LENGTH = 160;
+    public static final int RAW_FRAME_SIZE = 160;
     public static final int FRAMES_COUNT = 1;
+    public static final int BYTES_PER_SAMPLE = 2;
+    public static final int PARTS_PER_SAMPLE = 2;
+
     private ByteBuffer mOut;
 
     public KGSMDecoder() {
@@ -28,10 +29,14 @@ public class KGSMDecoder implements IKDecoder {
 //        return data;
     }
 
+    public static int getBytesPerDecodedFrame() {
+        return RAW_FRAME_SIZE * FRAMES_COUNT * BYTES_PER_SAMPLE * PARTS_PER_SAMPLE;
+    }
+
     @Override
     public void init() {
         System.loadLibrary("gsm");
-        mOut = ByteBuffer.allocateDirect(BUFFER_LENGTH * FRAMES_COUNT * 2 * 2);
+        mOut = ByteBuffer.allocateDirect(getBytesPerDecodedFrame());
         initGSM();
     }
 

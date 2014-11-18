@@ -11,6 +11,11 @@ public class KGSMCodec implements IKCodec {
 
     public static final int BUFFER_LENGTH = 160;
     public static final int FRAMES_COUNT = 4;
+
+    private static final int FRAME_SECOND_PART_LENGTH = 33;
+    private static final int FRAME_FIRST_PART_LENGTH = 32;
+    public static final int FRAME_LENGTH = FRAME_FIRST_PART_LENGTH + FRAME_SECOND_PART_LENGTH;
+
     private ByteBuffer mOut;
 
     public KGSMCodec() {
@@ -19,7 +24,7 @@ public class KGSMCodec implements IKCodec {
     @Override
     public void init() {
         System.loadLibrary("gsm");
-        mOut = ByteBuffer.allocateDirect((32 + 33) * FRAMES_COUNT);
+        mOut = ByteBuffer.allocateDirect((FRAME_FIRST_PART_LENGTH + FRAME_SECOND_PART_LENGTH) * FRAMES_COUNT);
         initGSM();
     }
 

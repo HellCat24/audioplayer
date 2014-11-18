@@ -225,7 +225,7 @@ public class AudioPlayer implements OnPreparedListener, OnErrorListener, MusicFo
                 mPlayer.start();
             }
         } catch (IOException e) {
-            e.printStackTrace();
+            Log.e(TAG, "Media Player", e);
         }
         //Some strange logic
         mCurrentState = State.Stopped;
