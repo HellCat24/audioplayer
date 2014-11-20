@@ -28,7 +28,7 @@ public class HttpSession implements Runnable {
     private IRandomAccessInputStream mSeekStream;
     private final Socket mSocket;
     private boolean mIsNeedDecode;
-    private long mFileSize;
+    private long mRawFileSize;
 
     private IInputStreamProvider mInputStreamProvider;
 
@@ -57,16 +57,20 @@ public class HttpSession implements Runnable {
 
     @Override
     public void run() {
-        try {
-            openInputStream();
-            handleResponse(mSocket);
-        } catch (IOException e) {
-            e.printStackTrace();
-        } finally {
-            if (mIs != null) {
-                try {
-                    mIs.close();
-                } catch (IOException e) {
+        synchronized (mFile) {
+            try {
+                Log.d(TAG, "HttpSession -- Open Stream");
+                openInputStream();
+                handleResponse(mSocket);
+                Log.d(TAG, "HttpSession -- End Of Request");
+            } catch (IOException e) {
+                e.printStackTrace();
+            } finally {
+                if (mIs != null) {
+                    try {
+                        mIs.close();
+                    } catch (IOException e) {
+                    }
                 }
             }
         }
@@ -86,14 +90,14 @@ public class HttpSession implements Runnable {
             if (!mIsNeedDecode) {
                 //Some troubles are here with mp3
                 mIs = mInputStreamProvider.getFileInputStream(mFile);
-                mFileSize = (int) mFile.length();
+                mRawFileSize = (int) mFile.length();
                 mFileMimeType = "audio/mpeg";
             } else {
                 mFileMimeType = AUDIO_DECODE_TYPE;
                 IRandomAccessFile seekFile = mInputStreamProvider.getRandomAccessFile(mFile);
                 mSeekStream = new GSMRandomAccessStream(seekFile);
-                mFileSize = mSeekStream.length();
-                mDuration = (int) (mFileSize / 16);
+                mRawFileSize = mSeekStream.length();
+                mDuration = (int) (mRawFileSize / 16);
             }
         }
     }
@@ -134,8 +138,8 @@ public class HttpSession implements Runnable {
             String range = pre.getProperty("range");
 
             Properties headers = new Properties();
-            if (mFileSize != -1)
-                headers.put("Content-Length", String.valueOf(mFileSize));
+            if (mRawFileSize != -1)
+                headers.put("Content-Length", String.valueOf(mRawFileSize));
             headers.put("Accept-Ranges", canSeek ? "bytes" : "none");
 
             int sendCount;
@@ -143,7 +147,7 @@ public class HttpSession implements Runnable {
             String status;
             if (range == null || !canSeek) {
                 status = "200 OK";
-                sendCount = (int) mFileSize;
+                sendCount = (int) mRawFileSize;
             } else {
                 if (!range.startsWith("bytes=")) {
                     sendError(socket, HTTP_416, null);
@@ -165,13 +169,13 @@ public class HttpSession implements Runnable {
                     }
                 }
 
-                if (startFrom >= mFileSize) {
+                if (startFrom >= mRawFileSize) {
                     sendError(socket, HTTP_416, null);
                     inS.close();
                     return;
                 }
                 if (endAt < 0)
-                    endAt = mFileSize - 1;
+                    endAt = mRawFileSize - 1;
                 sendCount = (int) (endAt - startFrom + 1);
                 if (sendCount < 0)
                     sendCount = 0;
@@ -182,7 +186,7 @@ public class HttpSession implements Runnable {
                     mSeekStream.seek(startFrom);
                 }
                 headers.put("Content-Length", "" + sendCount);
-                String rangeSpec = "bytes " + startFrom + "-" + endAt + "/" + mFileSize;
+                String rangeSpec = "bytes " + startFrom + "-" + endAt + "/" + mRawFileSize;
                 headers.put("Content-Range", rangeSpec);
             }
             if (mIsNeedDecode) {
@@ -250,18 +254,15 @@ public class HttpSession implements Runnable {
     byte[] tmpBuf = new byte[8192];
 
     private void copyStream(InputStream in, OutputStream out, int sendCount) throws IOException {
-        if (mIsNeedDecode) {
-            while (sendCount > 0) {
-
-                int count = Math.min(sendCount, tmpBuf.length);
-                count = in.read(tmpBuf, 0, count);
+        while (sendCount > 0) {
+            int count = Math.min(sendCount, tmpBuf.length);
+            count = in.read(tmpBuf, 0, count);
 //                Log.d(TAG, "SOH count: " + count + " sendCount: " + sendCount);
-                if (count < 0) {
-                    break;
-                }
-                out.write(tmpBuf, 0, count);
-                sendCount -= count;
+            if (count < 0) {
+                break;
             }
+            out.write(tmpBuf, 0, count);
+            sendCount -= count;
         }
     }
 

@@ -23,6 +23,7 @@ class GSMRandomAccessStream extends IRandomAccessInputStream {
     private long mGSMOffset;
     private long mOffset;
     private byte[] mTmpBuf;
+    private long mSeekPart;
 
     public GSMRandomAccessStream(IRandomAccessFile file) {
         mFile = file;
@@ -49,6 +50,9 @@ class GSMRandomAccessStream extends IRandomAccessInputStream {
     @Override
     public int read(byte[] buffer, int byteOffset, int byteCount) throws IOException {
         int readed = 0;
+        if (mOffset == 0 && mSeekPart != 0 && mSeekPart < RAW_HEADER_SIZE) {
+            throw new RuntimeException("WTH");
+        }
         if (mOffset < RAW_HEADER_SIZE) {
             long length = Math.min(byteCount, RAW_HEADER_SIZE - mOffset);
             byte[] header = getHeader();
@@ -58,6 +62,15 @@ class GSMRandomAccessStream extends IRandomAccessInputStream {
             readed += length;
             if (mOffset >= RAW_HEADER_SIZE) {
                 mFile.read(new byte[GSM_HEADER_LENGTH]);
+            }
+        }
+        if (mSeekPart != 0) {
+            int count = mFile.read(mTmpBuf, 0, mTmpBuf.length);
+            if (count == KGSMCodec.FRAME_LENGTH) {
+                byte[] decodeBuf = mDecoder.decode(mTmpBuf);
+                System.arraycopy(decodeBuf, (int) (BYTES_PER_DECODED_FRAME - mSeekPart), buffer, readed, (int) mSeekPart);
+                readed += mSeekPart;
+                mOffset += BYTES_PER_DECODED_FRAME;
             }
         }
         if (readed < byteCount && mOffset >= RAW_HEADER_SIZE) {
@@ -82,11 +95,18 @@ class GSMRandomAccessStream extends IRandomAccessInputStream {
 
     @Override
     void seek(long offset) throws IOException {
-        if (mOffset >= RAW_HEADER_SIZE) {
+        if (offset >= RAW_HEADER_SIZE) {
             long seekInRAW = offset - RAW_HEADER_SIZE;
-            long calcGSMPackets = seekInRAW / KGSMDecoder.RAW_FRAME_SIZE;
-            mGSMOffset = GSM_HEADER_LENGTH + calcGSMPackets * KGSMCodec.FRAME_LENGTH;
-            mFile.mySeek(mGSMOffset);
+            long calcGSMPackets = seekInRAW / KGSMDecoder.getBytesPerDecodedFrame();
+            long newOffset = GSM_HEADER_LENGTH + calcGSMPackets * KGSMCodec.FRAME_LENGTH;
+            long seekPart = seekInRAW % KGSMDecoder.getBytesPerDecodedFrame();
+            if (mGSMOffset != newOffset) {
+                mGSMOffset = newOffset;
+                mOffset = offset;
+//                Log.e(TAG, "seek to " + calcGSMPackets + " / " + seekPart);
+                mFile.mySeek(mGSMOffset);
+            }
+            mSeekPart = seekPart;
         }
     }
 

@@ -342,8 +342,10 @@ public class AudioPlayer implements OnPreparedListener, OnErrorListener, MusicFo
 
     @Override
     public void seekTo(int progress) {
-        double progressInMillis = (progress / 100.0) * getDuration();//mPlayer.getDuration();
-        mPlayer.seekTo((int) progressInMillis);
+        if (mPlayer != null) {
+            double progressInMillis = (progress / 100.0) * getDuration();//mPlayer.getDuration();
+            mPlayer.seekTo((int) progressInMillis);
+        }
     }
 
     public void startUpdates() {
